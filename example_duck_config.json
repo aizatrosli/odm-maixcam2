@@ -1,0 +1,43 @@
+{
+    "start_paused": false,
+    "imu_upside_down": false,
+    "phase_frequency_factor_offset": 0.0,
+    "expression_features": {
+        "eyes": false,
+        "projector": false,
+        "antennas": false,
+        "speaker": false,
+        "microphone": false,
+        "camera": false
+    },
+    "joints_offsets": {
+        "left_hip_yaw": 0.0,
+        "left_hip_roll": 0.0,
+        "left_hip_pitch": 0.0,
+        "left_knee": 0.0,
+        "left_ankle": 0.0,
+        "neck_pitch": 0.0,
+        "head_pitch": 0.0,
+        "head_yaw": 0.0,
+        "head_roll": 0.0,
+        "right_hip_yaw": 0.0,
+        "right_hip_roll": 0.0,
+        "right_hip_pitch": 0.0,
+        "right_knee": 0.0,
+        "right_ankle": 0.0
+    },
+    "maixcam2": {
+        "servo_port": "/dev/ttyACM0",
+        "servo_baudrate": 1000000,
+        "imu_i2c_bus": null,
+        "imu_address": 40,
+        "imu_offsets_path": "~/imu_offsets.json",
+        "left_foot_gpio": "GPIOA4",
+        "right_foot_gpio": "GPIOA5",
+        "pinmap": {},
+        "policy_backend": "onnx",
+        "policy_path": "~/BEST_WALK_ONNX_2.onnx",
+        "polynomial_coefficients_path": "~/polynomial_coefficients.pkl",
+        "nb_steps_in_period": null
+    }
+}

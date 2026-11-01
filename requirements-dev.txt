@@ -1,0 +1,6 @@
+# On a PC: tests and model conversion helpers
+numpy
+pyserial
+pytest
+onnx
+onnxruntime
