@@ -91,6 +91,25 @@ python3 scripts/walk.py --follow           # walk and follow
 
 Before walking, use `test_vision.py` to check three things. First, a person on the right of the image gives a negative `wz` (turn right). Second, `head_yaw` moves the head toward the person; if it doesn't, set `follow.head_yaw_sign` (and `head_pitch_sign`) to -1. Third, set `hfov_deg` to your lens. If the camera is mounted in the head, set `camera_on_head: true` so the head angle is taken into account. All tuning lives under `maixcam2.vision.follow` in `duck_config.json` (see `odm_maix/vision/follow.py`).
 
+## Benchmark the NPU and the control loop
+
+These numbers decide which camera encoder (step 3) the duck can afford. On a PC with Docker and Pulsar2, build ViT encoders of several sizes (random weights, since only the architecture sets the speed):
+
+```bash
+tools/bench_vit/build_vits.sh                      # tiny/small/base/large at 160 and 224 px
+tools/bench_vit/build_vits.sh small:128:4          # size:res:frames, e.g. a 4-frame clip
+PRECISION=int8 tools/bench_vit/build_vits.sh       # all INT8 instead of U16 LayerNorm + Softmax
+```
+
+Copy `out/` to the board, then:
+
+```bash
+python3 scripts/bench_npu.py out/*/*.mud --yolo /root/models/yolo11n.mud
+python3 scripts/bench_npu.py --loop 30 --policy ~/out/walk_policy.mud --load out/vit_small_160_f1/vit_small_160_f1.mud
+```
+
+The first line times each model and records how much CMM it takes. YOLO11n is a reference point against Sipeed's published figure. The second runs the 50 Hz loop with the policy on the NPU while a ViT runs flat out in another process, and counts overruns. No servos move. Everything is saved to `bench_results.json`.
+
 ## Tests
 
 ```bash
@@ -106,6 +125,7 @@ This was written against the documentation and has not run on a MaixCAM2 yet. Ch
 - the MaixCAM2 pin names and UART/I2C device numbers
 - whether the Pulsar2 config (`Numpy` calibration, `FP32` input, full `U16`) builds on your Pulsar2 version
 - `maix.nn.NN.forward` with a raw float tensor (the Sipeed docs only show image models)
+- whether the ViT benchmark configs (`op_types` U16 override, 5-D input for multi-frame) build on your Pulsar2 version
 - whether onnxruntime installs with pip on the board image
 - that `/root/models/yolo11n.mud` ships on your MaixPy image (YOLO11 needs MaixPy 4.7.0 or later), and the camera FOV and head joint signs for follow mode
 
