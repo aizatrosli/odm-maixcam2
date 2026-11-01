@@ -34,22 +34,23 @@ JOINT_NAMES = [
 ]
 
 DEFAULT_MAIXCAM2 = {
+    # Pin choices are explained in docs/WIRING.md.
     # Servo bus: the Waveshare bus-servo adapter over USB (needs the
-    # MaixCAM2 Type-C port in host mode) or a MaixCAM2 UART such as
-    # /dev/ttyS1 wired to the adapter's UART header.
+    # MaixCAM2 Type-C port in host mode), or UART4 on the 6-pin connector
+    # (/dev/ttyS4, add "A21": "UART4_TX", "A22": "UART4_RX" to pinmap).
     "servo_port": "/dev/ttyACM0",
     "servo_baudrate": 1000000,
-    # BNO055 on I2C. null bus = scan /dev/i2c-0..7 at start-up.
+    # BNO055 on I2C7 (A8 = SCL, A9 = SDA, see pinmap below).
+    # null bus = scan /dev/i2c-0..7 at start-up.
     "imu_i2c_bus": None,
     "imu_address": 0x28,
     "imu_offsets_path": os.path.join(HOME_DIR, "imu_offsets.json"),
-    # Foot switches: MaixPy GPIO names (see the MaixCAM2 pinout). The
-    # placeholders below MUST be checked against your wiring.
-    "left_foot_gpio": "GPIOA4",
-    "right_foot_gpio": "GPIOA5",
-    # Extra pin functions applied with maix.pinmap at start-up,
-    # e.g. {"A21": "UART4_TX", "A22": "UART4_RX", "A1": "I2C5_SCL"}.
-    "pinmap": {},
+    # Foot switches to GND (internal pull-ups), on the left 2x6 header.
+    "left_foot_gpio": "GPIOB21",
+    "right_foot_gpio": "GPIOB20",
+    # Pin functions applied with maix.pinmap at start-up. A pinmap in
+    # duck_config.json replaces this one, so keep the I2C7 entries in it.
+    "pinmap": {"A8": "I2C7_SCL", "A9": "I2C7_SDA"},
     # Walking policy
     "policy_backend": "onnx",  # "onnx" (CPU) or "npu" (axmodel through maix.nn)
     "policy_path": os.path.join(HOME_DIR, "BEST_WALK_ONNX_2.onnx"),
