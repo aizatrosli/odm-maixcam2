@@ -6,7 +6,8 @@ send back, so the encoder estimates can be replaced with real numbers.
     # 1. latency of any compiled models (.mud), e.g. the ViTs from tools/bench_vit
     python3 scripts/bench_npu.py out/*/*.mud
 
-    # 2. reference point: YOLO11n through MaixPy (Sipeed quotes ~113 FPS)
+    # 2. reference point: YOLO11n through MaixPy (Sipeed quotes up to 113 FPS for YOLO11n at 640x640, model only;
+    #    the stock 640x480 model timed through detect() includes pre/post-processing)
     python3 scripts/bench_npu.py --yolo /root/models/yolo11n.mud
 
     # 3. control-loop jitter at 50 Hz with the walking policy, while a ViT

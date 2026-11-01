@@ -2,7 +2,7 @@
 
 This replaces the [Pi Zero pin table](https://github.com/apirrone/Open_Duck_Mini/blob/v2/docs/assembly_guide.md#electronics) in the v2 assembly guide. Everything else in the v2 build (battery pack, BMS, UBEC, servo driver board, BNO055, foot switches) stays as it is.
 
-Pin names come from Sipeed's [MaixCAM2 pinout](https://wiki.sipeed.com/hardware/assets/maixcam/maixcam2_pins.jpg) and the MaixPy [pinmap](https://wiki.sipeed.com/maixpy/doc/en/peripheral/pinmap.html), [UART](https://wiki.sipeed.com/maixpy/doc/en/peripheral/uart.html), [I2C](https://wiki.sipeed.com/maixpy/doc/en/peripheral/i2c.html) and [PWM](https://wiki.sipeed.com/maixpy/doc/en/peripheral/pwm.html) pages. They have not been checked on a real board yet, so run `python3 scripts/find_pins.py` once before you solder.
+Pin names come from Sipeed's [MaixCAM2 pinout](https://wiki.sipeed.com/hardware/assets/maixcam/maixcam2_pins.jpg) and the MaixPy [pinmap](https://wiki.sipeed.com/maixpy/doc/en/peripheral/pinmap.html), [UART](https://wiki.sipeed.com/maixpy/doc/en/peripheral/uart.html), [I2C](https://wiki.sipeed.com/maixpy/doc/en/peripheral/i2c.html) and [PWM](https://wiki.sipeed.com/maixpy/doc/en/peripheral/pwm.html) pages. Every pin name, function and `/dev` path here was checked against the MaixCDK pinmap source (`components/peripheral/port/maixcam2/maix_pinmap.cpp`) and the MaixPy peripheral docs. The pin functions at boot are read from hardware, so run `python3 scripts/find_pins.py` once before you solder.
 
 ![MaixCAM2 to Open Duck Mini v2 wiring](images/maixcam2-duck-wiring.png)
 
@@ -47,7 +47,7 @@ The header silkscreen shows the same pins in two rows, so match by name, not by 
 |---|---|---|---|---|
 | **Power (UBEC 5 V)** | 5V out | 5V (right header) | power in | UBEC rated 3 A or more. Also feeds the antenna servos. |
 | | GND | GND (right header) | | |
-| **Servo driver board** (Waveshare bus servo adapter) | USB | Type-C | USB host, `/dev/ttyACM0` | Default. Set the MaixCAM2 USB mode to **host**. The board keeps its own 7.4 V DC input from the battery. |
+| **Servo driver board** (Waveshare bus servo adapter) | USB | Type-C | USB host, `/dev/ttyACM0` | Default. Set the MaixCAM2 USB mode to **host** (Settings → USB Mode, or `maix_usb_mode=host`). A CH343-based board shows up as `/dev/ttyACM0`, a CH340-based one as `/dev/ttyUSB0`. The board keeps its own 7.4 V DC input from the battery. |
 | | *or* UART RX | A21 (6-pin) | `UART4_TX`, `/dev/ttyS4` | Optional, see below. |
 | | *or* UART TX | A22 (6-pin) | `UART4_RX` | |
 | | *or* GND | GND (6-pin) | | |
@@ -56,9 +56,9 @@ The header silkscreen shows the same pins in two rows, so match by name, not by 
 | | SCL | A8 | `I2C7_SCL` | `/dev/i2c-7`, address 0x28 |
 | | SDA | A9 | `I2C7_SDA` | |
 | | 3VO, RST, INT, ADR, PS0, PS1 | not connected | | as on the Pi |
-| **Left foot switch** | NO contact | B21 | `GPIOB21` | Internal pull-up, closed = foot on the ground. |
+| **Left foot switch** | NO contact | B21 | `GPIOB21` | 10 kΩ pull-up from B21 to 3V3 (`maix.gpio` does not enable an internal pull-up on inputs). Closed = foot on the ground. |
 | | COM | GND (left header) | | |
-| **Right foot switch** | NO contact | B20 | `GPIOB20` | |
+| **Right foot switch** | NO contact | B20 | `GPIOB20` | 10 kΩ pull-up from B20 to 3V3. |
 | | COM | GND (left header) | | |
 | **Left antenna servo** | signal | A31 | `PWM7`, 50 Hz | 3.3 V signal is fine for hobby servos. Power from the UBEC 5 V, not from a MaixCAM2 pin. |
 | **Right antenna servo** | signal | B2 | `PWM4`, 50 Hz | |
@@ -76,7 +76,7 @@ The header silkscreen shows the same pins in two rows, so match by name, not by 
 
 **Start with USB.** It is what the v2 duck already uses, it needs no soldering, and the servo driver board handles the half-duplex bus. The Type-C port becomes the servo link, which is why the MaixCAM2 has to be powered from the 5V header pin. Use WiFi and SSH to reach the board.
 
-**Move to UART4 later** if you want the Type-C port back, or if USB turns out flaky. 1 Mbps divides exactly from the MaixCAM2 UART clock (200 MHz / (16 x 1 Mbps) = 12.5), so the baud rate is accurate. Before you wire it, check that the driver board's UART header is 3.3 V logic and set its mode jumper to UART. Cross TX and RX, then set:
+**Move to UART4 later** if you want the Type-C port back, or if USB turns out flaky. The MaixCAM2 UART clock is 200 MHz and its divider has 1/16 steps, so 1 Mbps (200 MHz / (16 x 1 Mbps) = 12.5) is set exactly. Sipeed has only tested 115200 baud, so check the bus with `check_motors.py` after switching. Before you wire it, check that the driver board's UART header is 3.3 V logic and set its mode jumper to UART. Cross TX and RX, then set:
 
 ```json
 "servo_port": "/dev/ttyS4",

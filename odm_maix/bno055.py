@@ -20,6 +20,7 @@ ADDRESS_A = 0x28
 ADDRESS_B = 0x29
 
 REG_CHIP_ID = 0x00
+REG_PAGE_ID = 0x07  # same address on both register pages
 REG_ACC_DATA = 0x08
 REG_GYR_DATA = 0x14
 REG_CALIB_STAT = 0x35
@@ -63,10 +64,12 @@ class BNO055:
 
         self.bus = SMBus(bus)
         self.address = address
+        self._select_page0()
         chip = self._read_u8(REG_CHIP_ID)
         if chip != CHIP_ID:
             # BNO055 can need up to ~850 ms after power-on
             time.sleep(1.0)
+            self._select_page0()
             chip = self._read_u8(REG_CHIP_ID)
             if chip != CHIP_ID:
                 raise IOError(f"BNO055 not found on i2c-{bus} @0x{address:02x} (chip id 0x{chip:02x})")
@@ -76,6 +79,13 @@ class BNO055:
         self._write_u8(REG_UNIT_SEL, 0x00)  # m/s^2, deg/s, deg, Celsius, Windows orientation
 
     # register access --------------------------------------------------------
+
+    def _select_page0(self) -> None:
+        # Every register used here is on page 0; a chip left on page 1 would misread all of them.
+        try:
+            self._write_u8(REG_PAGE_ID, 0x00)
+        except OSError:
+            pass  # not powered up yet, the CHIP_ID retry handles it
 
     def _read_u8(self, reg: int) -> int:
         return self.bus.read_byte_data(self.address, reg)

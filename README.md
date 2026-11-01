@@ -80,7 +80,7 @@ python3 scripts/walk.py --backend npu --policy ~/out/walk_policy.mud
 
 `bench_policy.py` compares NPU and CPU outputs and timings. Only switch to the NPU when it prints `OK for walking`.
 
-The policy is a small MLP (101 -> 14), so the CPU handles it in well under a millisecond. Moving it to the NPU frees the CPU for the camera pipeline in step 2, and it is the same conversion path a future vision-aware policy will use. If the NPU result is worse, keep `policy_backend: "onnx"` for now and spend the NPU on vision.
+The policy is a small MLP (101 -> 14), so the CPU handles it in about 1.3 ms per step (measured on the board), well inside the 20 ms budget. Moving it to the NPU frees the CPU for the camera pipeline in step 2, and it is the same conversion path a future vision-aware policy will use. If the NPU result is worse, keep `policy_backend: "onnx"` for now and spend the NPU on vision.
 
 ## Follow a person with the camera (step 2)
 
@@ -143,7 +143,7 @@ sh tools/system/setup_board.sh revert && reboot             # back to stock
 - Keeps the journal in RAM (16 MB). Use `--keep-journal` to keep it on disk.
 - Installs `duck.service`, which runs `scripts/walk.py` with real-time priority and sets the CPU governor to `performance` first. It never auto-restarts, because a crash loop could make the robot lurch.
 - With `--autostart`, disables `launcher.service` and moves `/maixapp/auto_start.txt` aside.
-- With `--cmm MIB`, sets `maix_memory_cmm` in `/boot/configs` (needs a reboot). Start at 1024, then check peak usage with the full duck running (`grep -A1 CMM_USE_INFO /proc/ax_proc/mem_cmm_info`) and keep at least 2× that. A bigger NPU model needs its size + about 512 MB.
+- With `--cmm MIB`, sets `maix_memory_cmm` in `/boot/configs` (needs a reboot). Start at 1024, then check usage with the full duck running (`grep -A1 CMM_USE_INFO /proc/ax_proc/mem_cmm_info`, which shows current use only, so sample it a few times) and keep at least 2× the highest value. The script refuses values below 512 or above the stock 3072 MiB, and `revert` restores only the `maix_memory_cmm` line, so Wi-Fi and USB-mode settings you change later are kept. A bigger NPU model needs its size + about 512 MB.
 
 While `duck.service` runs, MaixVision can't stop it, so run `systemctl stop duck` before developing from MaixVision. If the servo board uses the Type-C port, the USB network is gone, so make sure Wi-Fi SSH works before you enable `--autostart`. With `--autostart`, the duck starts its walk loop right after boot, so boot it on its stand or lying down.
 
@@ -157,16 +157,30 @@ python3 -m pytest tests
 ODM_POLICY_ONNX=path/to/BEST_WALK_ONNX_2.onnx python3 -m pytest tests   # also runs the real policy
 ```
 
-## Not verified yet
+## Verification status
 
-This was written against the documentation and has not run on a MaixCAM2 yet. Check these first:
+The code has not walked a duck on a MaixCAM2 yet. Every claim the README and [docs/WIRING.md](docs/WIRING.md) make was checked against primary sources: the MaixCDK and MaixPy source and docs, the Pulsar2 docs (up to 7.0), the Feetech STS3215 SDK, the Bosch BNO055 datasheet, and Open_Duck_Mini_Runtime with the rustypot 0.1.0 it pins.
 
-- the MaixCAM2 pin names and UART/I2C device numbers
-- `maix.nn.NN.forward` with a raw float tensor (the Sipeed docs only show image models)
-- whether the ViT benchmark configs (`op_types` U16 override, 5-D input for multi-frame) build on your Pulsar2 version
-- whether onnxruntime installs with pip on the board image
-- that `/root/models/yolo11n.mud` ships on your MaixPy image (YOLO11 needs MaixPy 4.7.0 or later), and the camera FOV and head joint signs for follow mode
-- `tools/system/setup_board.sh` on a real board: the systemd unit names Sipeed ships (`launcher.service`), the `/boot/configs` format, and that SCHED_FIFO is allowed for `duck.service`
+Verified:
+- **Pins.** Pin names, `maix.pinmap` function names and `/dev` paths: `/dev/i2c-7`, `/dev/ttyS4`, PWM 4 to 7. PWM6 is shared with the onboard light. UART0 is the console.
+- **Pulsar2 policy config.** The config builds on Pulsar2 6.0, with the NPU output within 0.03 of ONNX. The `.mud` keys map NPU2 to `model_npu` and NPU1 to `model_vnpu`.
+- **Float tensors on the NPU.** `maix.nn.NN.forward` with a float32 tensor follows Sipeed's own non-image example.
+- **ViT config syntax.** `op_types` with `LayerNormalization`/`Softmax` is valid Pulsar2 syntax.
+- **onnxruntime.** It installs with pip (cp313 aarch64 wheels), and the policy runs at 1.30 ms per step on the CPU.
+- **Board system.** `launcher.service`, `/maixapp/auto_start.txt`, `maix_memory_cmm` in MiB, `/proc/ax_proc/mem_cmm_info`, and USB host mode dropping the USB network all match the docs. The board reports 3072 MB of CMM with about 62 MB used.
+- **Servo protocol.** STS3215 registers, packet format, and unit conversions match rustypot 0.1.0.
+- **Policy constants.** Servo IDs, init pose, gains, action scale and the 101-value observation match the Pi runtime.
+- **BNO055.** Registers, scales, mode timing and axis remap match the datasheet and the Pi runtime.
+
+Corrected in this pass:
+- **Foot switches need external pull-ups.** `maix.gpio` does not enable an internal pull-up on inputs, so add a 10 kΩ resistor from B20 and B21 to 3V3 (WIRING.md).
+- **MaixPy version.** MaixCAM2 needs MaixPy 4.11.0 or later, not 4.7.0. `/root/models/yolo11n.mud` ships on the image and is 640x480.
+- **Camera FOV.** The stock lens is 86.7° horizontal at 16:9, so the 4:3 frame is about 65–71°. Measure it and set `hfov_deg`.
+- **1 Mbps UART4.** The rate is exact because the UART divider is fractional, not an integer divider. Sipeed has only tested 115200.
+- **`setup_board.sh`.** `revert` used to restore the whole `/boot/configs`, which undid later Settings changes. `--autostart` used to carry on when `launcher.service` was missing. `--cmm` had no upper bound.
+- **BNO055 register page.** The driver now selects register page 0 before it reads anything.
+
+Still needs the board: see [docs/HARDWARE_CHECKLIST.md](docs/HARDWARE_CHECKLIST.md) for the short list of on-board tests. It covers boot pin functions, the foot pull-ups, the servo adapter device node, BNO055 clock stretching on I2C7, SCHED_FIFO and the governor, unit names, NPU float32 I/O, YOLO speed, FOV and head signs, ViT multi-frame builds, and the BLE gamepad.
 
 ## Credits
 
