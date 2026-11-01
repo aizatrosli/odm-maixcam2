@@ -45,7 +45,8 @@ DEFAULT_MAIXCAM2 = {
     "imu_i2c_bus": None,
     "imu_address": 0x28,
     "imu_offsets_path": os.path.join(HOME_DIR, "imu_offsets.json"),
-    # Foot switches to GND (internal pull-ups), on the left 2x6 header.
+    # Foot switches to GND, on the left 2x6 header, each with an external
+    # 10k pull-up to 3V3 (maix.gpio does not turn on a pull-up for inputs).
     "left_foot_gpio": "GPIOB21",
     "right_foot_gpio": "GPIOB20",
     # Pin functions applied with maix.pinmap at start-up. A pinmap in

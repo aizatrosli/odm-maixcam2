@@ -24,6 +24,7 @@ STATE=$R/root/.odm-setup
 UNIT=$R/etc/systemd/system/duck.service
 JOURNAL_DROPIN=$R/etc/systemd/journald.conf.d/90-odm-volatile.conf
 BOOTCFG=$R/boot/configs
+CMM_RE='^[[:space:]]*maix_memory_cmm[[:space:]]*='
 AUTOSTART_TXT=$R/maixapp/auto_start.txt
 
 # Background jobs and daemons the duck never needs. Only units that exist and are
@@ -109,7 +110,8 @@ cmd_apply() {
         case "$CMM" in
             -1) ;;
             ''|*[!0-9]*) echo "--cmm must be a whole number of MiB, or -1" >&2; exit 2 ;;
-            *) [ "$CMM" -ge 512 ] || { echo "refusing --cmm below 512 MiB: camera + NPU models would not fit" >&2; exit 2; } ;;
+            *) [ "$CMM" -ge 512 ] || { echo "refusing --cmm below 512 MiB: camera + NPU models would not fit" >&2; exit 2; }
+               [ "$CMM" -le 3072 ] || { echo "refusing --cmm above 3072 MiB (the stock size): Linux would be left without memory" >&2; exit 2; } ;;
         esac
     fi
     need_root
@@ -146,6 +148,10 @@ cmd_apply() {
         if unit_exists launcher.service && [ "$(systemctl is-enabled launcher.service 2>/dev/null || true)" = enabled ]; then
             run systemctl disable launcher.service
             [ "$DRY" = 1 ] || touch "$STATE/launcher_disabled"
+        elif ! unit_exists launcher.service; then
+            echo "launcher.service not found, so the stock UI would still start and fight duck.service for the camera." >&2
+            echo "Find the launcher unit with: systemctl list-unit-files | grep -i launch" >&2
+            exit 1
         fi
         run systemctl enable duck.service
         if [ -f "$AUTOSTART_TXT" ]; then
@@ -158,11 +164,18 @@ cmd_apply() {
         [ -f "$BOOTCFG" ] || { echo "  $BOOTCFG not found, skipping"; CMM=""; }
     fi
     if [ -n "$CMM" ]; then
-        [ -f "$STATE/configs.orig" ] || run cp "$BOOTCFG" "$STATE/configs.orig"
-        if grep -q "^maix_memory_cmm=" "$BOOTCFG"; then
-            run sed -i "s/^maix_memory_cmm=.*/maix_memory_cmm=$CMM/" "$BOOTCFG"
+        # Keep only the old CMM line: the Settings app rewrites this file (Wi-Fi, USB mode, ...),
+        # so restoring a whole copy would undo those changes.
+        if [ ! -f "$STATE/cmm.orig" ] && [ "$DRY" = 0 ]; then
+            grep -E "$CMM_RE" "$BOOTCFG" > "$STATE/cmm.orig" || : > "$STATE/cmm.orig"
+        fi
+        if grep -qE "$CMM_RE" "$BOOTCFG"; then
+            run sed -i -E "s/$CMM_RE.*/maix_memory_cmm=$CMM/" "$BOOTCFG"
+        elif [ "$DRY" = 0 ]; then
+            [ -z "$(tail -c1 "$BOOTCFG")" ] || echo >> "$BOOTCFG"
+            echo "maix_memory_cmm=$CMM" >> "$BOOTCFG"
         else
-            if [ "$DRY" = 0 ]; then echo "maix_memory_cmm=$CMM" >> "$BOOTCFG"; else echo "  [dry-run] append maix_memory_cmm=$CMM"; fi
+            echo "  [dry-run] append maix_memory_cmm=$CMM"
         fi
         run sync
     fi
@@ -206,10 +219,15 @@ cmd_revert() {
         run rm -f "$JOURNAL_DROPIN"
         run systemctl restart systemd-journald
     fi
-    if [ -f "$STATE/configs.orig" ]; then
-        say "Restoring $BOOTCFG (takes effect after reboot)"
-        run cp "$STATE/configs.orig" "$BOOTCFG"
-        run rm -f "$STATE/configs.orig"
+    if [ -f "$STATE/cmm.orig" ] && [ -f "$BOOTCFG" ]; then
+        say "Restoring maix_memory_cmm in $BOOTCFG (takes effect after reboot)"
+        old=$(cat "$STATE/cmm.orig")
+        if [ -n "$old" ]; then
+            run sed -i -E "s/$CMM_RE.*/$old/" "$BOOTCFG"
+        else
+            run sed -i -E "/$CMM_RE/d" "$BOOTCFG"
+        fi
+        run rm -f "$STATE/cmm.orig"
         run sync
     fi
     run systemctl daemon-reload

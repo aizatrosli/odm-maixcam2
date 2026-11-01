@@ -1,4 +1,10 @@
-"""Foot contact switches on MaixCAM2 GPIO (active low, internal pull-up)."""
+"""Foot contact switches on MaixCAM2 GPIO (active low).
+
+maix.gpio accepts Pull.PULL_UP but on MaixCAM2 it does not set a bias on input
+lines (it uses the GPIO v1 line-handle API without bias flags), so each switch
+needs an external 10k pull-up to 3V3. PULL_UP is still passed in case a later
+MaixPy honours it.
+"""
 
 from __future__ import annotations
 

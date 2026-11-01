@@ -34,7 +34,7 @@ class Detection:
 
 @dataclass
 class FollowParams:
-    hfov_deg: float = 70.0  # camera horizontal field of view, measure yours
+    hfov_deg: float = 70.0  # horizontal FOV of the 4:3 frame; stock SC850SL lens is 86.7 deg at 16:9, ~65-71 deg after the 4:3 crop, measure yours
     vfov_deg: float = 55.0
     camera_on_head: bool = False  # True when the camera moves with head_yaw/head_pitch
     target_height: float = 0.55  # box height (fraction of image) at the distance to keep
