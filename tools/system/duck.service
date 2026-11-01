@@ -1,0 +1,25 @@
+# Open Duck Mini runtime as a boot service. Installed by tools/system/setup_board.sh,
+# which replaces @REPO@ and @ARGS@. Do not copy this file by hand.
+[Unit]
+Description=Open Duck Mini runtime (walk loop)
+After=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO@
+Environment=PYTHONUNBUFFERED=1
+# Pin the CPU clock so the 50 Hz loop doesn't jitter on frequency changes.
+# The leading "-" means a missing cpufreq interface is not an error.
+ExecStartPre=-/bin/sh -c 'for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do [ -w "$g" ] && echo performance > "$g"; done'
+ExecStart=/usr/bin/python3 @REPO@/scripts/walk.py @ARGS@
+# Real-time priority for the walk loop. The loop sleeps every step, so SSH still
+# gets CPU time. If SSH ever becomes unresponsive, delete these two lines.
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=50
+# Never auto-restart a walking robot: a crash loop can make it lurch or fall.
+Restart=no
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
