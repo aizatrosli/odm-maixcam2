@@ -32,9 +32,12 @@
         "imu_i2c_bus": null,
         "imu_address": 40,
         "imu_offsets_path": "~/imu_offsets.json",
-        "left_foot_gpio": "GPIOA4",
-        "right_foot_gpio": "GPIOA5",
-        "pinmap": {},
+        "left_foot_gpio": "GPIOB21",
+        "right_foot_gpio": "GPIOB20",
+        "pinmap": {
+            "A8": "I2C7_SCL",
+            "A9": "I2C7_SDA"
+        },
         "policy_backend": "onnx",
         "policy_path": "~/BEST_WALK_ONNX_2.onnx",
         "polynomial_coefficients_path": "~/polynomial_coefficients.pkl",

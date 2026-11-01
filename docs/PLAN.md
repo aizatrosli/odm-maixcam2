@@ -15,7 +15,8 @@ The camera steers the walk (where to go, when to stop) and the RL policy keeps h
 
 Code is in this repo (see the README). It still needs testing on hardware:
 
-- [ ] Pick the foot-switch GPIO pins and the I2C pins (`scripts/find_pins.py`)
+- [x] Pick the foot-switch GPIO pins and the I2C pins ([WIRING.md](WIRING.md))
+- [ ] Confirm them on the board with `scripts/find_pins.py`
 - [ ] `scripts/check_motors.py` finds all 14 servos
 - [ ] `scripts/test_imu.py` shows gravity on +Z when upright, then `--calibrate`
 - [ ] `scripts/test_feet.py` shows both switches
