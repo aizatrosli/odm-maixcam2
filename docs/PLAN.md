@@ -1,0 +1,24 @@
+# Plan
+
+Goal: replace the Raspberry Pi Zero 2W in Open Duck Mini v2 with a Sipeed MaixCAM2, run the ML on its NPU, and use the built-in camera to walk better.
+
+The camera steers the walk (where to go, when to stop) and the RL policy keeps handling balance and gait. Feeding raw images straight into the policy is out of scope.
+
+| # | Step | Done when |
+|---|------|-----------|
+| 1 | **Port the runtime and walk with the existing policy.** Servo, IMU and foot-switch drivers for the MaixCAM2, the 50 Hz control loop, and ONNX to NPU conversion of `BEST_WALK_ONNX_2.onnx`. | The duck walks as well as it did on the Pi, with the policy on the NPU and no loop overruns. |
+| 2 | **Camera perception on the NPU.** Run a detector (person, face, obstacles) on the built-in camera and turn its output into walking commands (turn toward a target, stop before an obstacle). | The duck follows a person and stops before obstacles. |
+| 3 | **Train a better policy.** Retrain in Open_Duck_Playground with stronger domain randomization and rewards, plus the camera-derived inputs (target direction, obstacle distance). Export to the NPU. | It beats the stock policy in simulation and on the robot. |
+| 4 | **Tune on the robot.** Compare with the stock policy and tune gains and latency. | Measured improvement on the real duck. |
+
+## Step 1 status
+
+Code is in this repo (see the README). It still needs testing on hardware:
+
+- [ ] Pick the foot-switch GPIO pins and the I2C pins (`scripts/find_pins.py`)
+- [ ] `scripts/check_motors.py` finds all 14 servos
+- [ ] `scripts/test_imu.py` shows gravity on +Z when upright, then `--calibrate`
+- [ ] `scripts/test_feet.py` shows both switches
+- [ ] Walk on CPU (`scripts/walk.py`) and record `--save_obs obs.npy`
+- [ ] Convert to NPU (`tools/convert/convert_policy.sh`) and check with `scripts/bench_policy.py`
+- [ ] Walk on NPU (`--backend npu`)
