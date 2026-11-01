@@ -20,6 +20,11 @@ These stay exactly the same, because the policy depends on them: the 101-value o
 
 The full pin table, connector map and power layout are in [docs/WIRING.md](docs/WIRING.md). In short (all MaixCAM2 IO is **3.3 V**):
 
+![MaixCAM2 to Open Duck Mini v2 wiring](docs/images/maixcam2-duck-wiring.png)
+
+<sub>Base pinout drawing: [Sipeed MaixCAM2 pins](https://wiki.sipeed.com/hardware/en/maixcam/maixcam2.html). Duck labels added for this project.</sub>
+
+
 | Part | MaixCAM2 |
 |---|---|
 | UBEC 5 V | 5V + GND on the right header |

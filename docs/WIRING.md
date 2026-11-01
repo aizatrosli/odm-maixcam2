@@ -4,6 +4,8 @@ This replaces the [Pi Zero pin table](https://github.com/apirrone/Open_Duck_Mini
 
 Pin names come from Sipeed's [MaixCAM2 pinout](https://wiki.sipeed.com/hardware/assets/maixcam/maixcam2_pins.jpg) and the MaixPy [pinmap](https://wiki.sipeed.com/maixpy/doc/en/peripheral/pinmap.html), [UART](https://wiki.sipeed.com/maixpy/doc/en/peripheral/uart.html), [I2C](https://wiki.sipeed.com/maixpy/doc/en/peripheral/i2c.html) and [PWM](https://wiki.sipeed.com/maixpy/doc/en/peripheral/pwm.html) pages. They have not been checked on a real board yet, so run `python3 scripts/find_pins.py` once before you solder.
 
+![MaixCAM2 to Open Duck Mini v2 wiring](images/maixcam2-duck-wiring.png)
+
 ## Rules
 
 - **All MaixCAM2 IO is 3.3 V.** Never put 5 V or 7.4 V on a signal pin.
