@@ -22,3 +22,12 @@ Code is in this repo (see the README). It still needs testing on hardware:
 - [ ] Walk on CPU (`scripts/walk.py`) and record `--save_obs obs.npy`
 - [ ] Convert to NPU (`tools/convert/convert_policy.sh`) and check with `scripts/bench_policy.py`
 - [ ] Walk on NPU (`--backend npu`)
+
+## Step 2 status
+
+Follow mode code is in (`--follow`, `odm_maix/vision/`). It still needs testing on hardware:
+
+- [ ] `scripts/test_vision.py --show` detects people at a usable frame rate
+- [ ] Turn direction and head signs are right, and `hfov_deg` matches the lens
+- [ ] Walk and follow, then tune `target_height`, `k_turn` and `k_forward`
+- [ ] Obstacle stop is still to do. The plan is to use `maix.nn.DepthAnything` (relative depth) on the NPU, or a detector trained on obstacles.

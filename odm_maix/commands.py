@@ -83,3 +83,54 @@ class GamepadCommands:
 
     def stop(self):
         self._running = False
+
+
+class FollowCommands:
+    """Follow a person seen by the camera (step 2).
+
+    The detector runs on the NPU in a separate process; this object only reads
+    its latest boxes and runs the follow controller, so ``get()`` is cheap.
+    A gamepad, if given, still pauses with A and overrides the walk while a
+    stick is pushed.
+    """
+
+    def __init__(self, vision_cfg: dict, gamepad=None, detector=None, clock=time.monotonic):
+        from .vision.follow import FollowController, FollowParams
+
+        params = FollowParams(**vision_cfg.get("follow", {}))
+        self.controller = FollowController(params)
+        if detector is None:
+            from .vision.detector import DetectorProcess
+
+            detector = DetectorProcess(
+                model_path=vision_cfg.get("model_path", "/root/models/yolo11n.mud"),
+                class_name=vision_cfg.get("class_name", "person"),
+                conf=vision_cfg.get("conf_threshold", 0.5),
+                show=vision_cfg.get("show", False),
+            )
+        self.detector = detector
+        self.gamepad = gamepad
+        self.clock = clock
+        self._last_t = None
+
+    def get(self):
+        now = self.clock()
+        dt = 0.02 if self._last_t is None else min(0.1, now - self._last_t)
+        self._last_t = now
+        new, _, dets = self.detector.latest()
+        cmd = self.controller.update(dets if new else [], now, dt)
+        events = {}
+        if self.gamepad is not None:
+            pad_cmd, events = self.gamepad.get()
+            if np.any(np.abs(pad_cmd[:3]) > 1e-3):
+                cmd[:3] = pad_cmd[:3]
+        return cmd, events
+
+    @property
+    def state(self):
+        return self.controller.state
+
+    def stop(self):
+        self.detector.stop()
+        if self.gamepad is not None:
+            self.gamepad.stop()
