@@ -11,7 +11,9 @@ friction, servo kp and torso mass.
       uv run python -m odm_train.sim_eval BEST_WALK_ONNX_2.onnx runs/follow_v1/<ckpt>.onnx -n 20
 
 Prints, per policy: falls, mean time upright, and RMS tracking error for
-forward speed (vx) and turn rate (wz).
+forward speed (vx) and turn rate (wz). ``--save_obs obs_sim.npy`` also saves
+every observation, which can stand in for robot recordings when calibrating
+the NPU conversion (tools/convert/convert_policy.sh).
 """
 
 import argparse
@@ -102,7 +104,7 @@ class Sim(MJInferBase):
         return self.data.xmat[self.torso][8] > 0.3
 
 
-def run_episode(sim, policy, profile, prm_steps, rng, seconds, head, mode, latency):
+def run_episode(sim, policy, profile, prm_steps, rng, seconds, head, mode, latency, record=None):
     sim.randomize(rng)
     sim.reset()
     cmds = CommandProcess(rng, head, mode)
@@ -138,6 +140,8 @@ def run_episode(sim, policy, profile, prm_steps, rng, seconds, head, mode, laten
         a = phase_i / prm_steps * 2 * np.pi
         phase = np.array([np.cos(a), np.sin(a)])
 
+        if record is not None:
+            record.append(obs)
         action = policy.run(None, {"obs": obs[None]})[0][0]
         last = [action.copy(), last[0], last[1]]
         pending.append(action)
@@ -165,7 +169,7 @@ def run_episode(sim, policy, profile, prm_steps, rng, seconds, head, mode, laten
     return True, seconds, err_vx, err_wz
 
 
-def evaluate(path, n, seconds, head, mode, latency, seed):
+def evaluate(path, n, seconds, head, mode, latency, seed, record=None):
     profile = load_profile(path)
     opts = onnxruntime.SessionOptions()
     opts.intra_op_num_threads = 1
@@ -175,7 +179,7 @@ def evaluate(path, n, seconds, head, mode, latency, seed):
     rng = np.random.default_rng(seed)
     falls, alive, evx, ewz = 0, [], [], []
     for _ in range(n):
-        ok, t, ex, ew = run_episode(sim, policy, profile, prm.nb_steps_in_period, rng, seconds, head, mode, latency)
+        ok, t, ex, ew = run_episode(sim, policy, profile, prm.nb_steps_in_period, rng, seconds, head, mode, latency, record)
         falls += not ok
         alive.append(t)
         evx += ex
@@ -200,10 +204,15 @@ def main():
     p.add_argument("--no_head", action="store_true", help="keep head commands at zero")
     p.add_argument("--latency", type=int, default=2, help="max action delay in control steps")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--save_obs", default=None, help="save every observation to this .npy (NPU calibration data)")
     args = p.parse_args()
+    record = [] if args.save_obs else None
     for path in args.policies:
-        r = evaluate(path, args.n, args.seconds, not args.no_head, args.mode, args.latency, args.seed)
+        r = evaluate(path, args.n, args.seconds, not args.no_head, args.mode, args.latency, args.seed, record)
         print(json.dumps(r))
+    if record:
+        np.save(args.save_obs, np.stack(record))
+        print(f"saved {len(record)} observations to {args.save_obs}")
 
 
 if __name__ == "__main__":

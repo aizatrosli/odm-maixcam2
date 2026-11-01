@@ -71,7 +71,7 @@ pip install -r requirements-dev.txt
 tools/convert/convert_policy.sh BEST_WALK_ONNX_2.onnx obs.npy   # -> out/walk_policy.mud + .axmodel
 ```
 
-The quantizer calibrates on `obs.npy`, so use observations from real walking. The config quantizes the whole network to 16-bit (`U16`), because 8-bit loses too much accuracy for a balance controller. Copy `out/` to the board, then:
+The quantizer calibrates on `obs.npy`, so use observations from real walking. Before the robot can walk, observations recorded in MuJoCo work too: `python -m odm_train.sim_eval BEST_WALK_ONNX_2.onnx -n 8 --save_obs obs_sim.npy` (see `training/README.md` for setup). With those, the stock policy builds on Pulsar2 6.0 and its NPU output stays within 0.03 of ONNX (min cosine 0.9997) on held-out simulated steps. The config quantizes the whole network to 16-bit (`U16`), because 8-bit loses too much accuracy for a balance controller. Copy `out/` to the board, then:
 
 ```bash
 python3 scripts/bench_policy.py --onnx ~/BEST_WALK_ONNX_2.onnx --mud ~/out/walk_policy.mud --obs obs.npy
