@@ -32,4 +32,6 @@ mkdir -p out
 cp "$WORK/build_npu/compiled.axmodel" out/walk_policy_npu.axmodel
 cp "$WORK/build_vnpu/compiled.axmodel" out/walk_policy_vnpu.axmodel
 cp "$HERE/walk_policy.mud" out/
+# the policy profile travels with the model (walk_policy.mud -> walk_policy.json)
+if [ -f "${ONNX%.onnx}.json" ]; then cp "${ONNX%.onnx}.json" out/walk_policy.json; fi
 echo "done: $(pwd)/out"

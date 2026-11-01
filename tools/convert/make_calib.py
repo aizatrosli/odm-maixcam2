@@ -1,4 +1,4 @@
-"""Pack observations into a Pulsar2 calibration archive (one [1,101] float32 .npy per sample).
+"""Pack observations into a Pulsar2 calibration archive (one [1, obs_size] float32 .npy per sample).
 
     python3 make_calib.py obs.npy calib_obs.tar [--max 512]
 
@@ -19,7 +19,8 @@ p.add_argument("out")
 p.add_argument("--max", type=int, default=512)
 args = p.parse_args()
 
-obs = np.load(args.obs).astype(np.float32).reshape(-1, 101)
+obs = np.load(args.obs).astype(np.float32)
+obs = obs.reshape(-1, obs.shape[-1])
 if len(obs) > args.max:
     idx = np.linspace(0, len(obs) - 1, args.max).astype(int)
     obs = obs[idx]
@@ -27,7 +28,7 @@ if len(obs) > args.max:
 with tarfile.open(args.out, "w") as tar:
     for i, o in enumerate(obs):
         buf = io.BytesIO()
-        np.save(buf, o.reshape(1, 101))
+        np.save(buf, o.reshape(1, -1))
         info = tarfile.TarInfo(f"obs_{i:05d}.npy")
         info.size = buf.tell()
         buf.seek(0)

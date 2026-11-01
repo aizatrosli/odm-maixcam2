@@ -1,6 +1,6 @@
 """Prepare the walking policy ONNX for Pulsar2.
 
-* fixes the input to [1, 101] and the output to [1, 14]
+* fixes the batch size to 1 (input [1, 101 + extra inputs], output [1, 14])
 * drops the unused ``ai.onnx.ml`` opset import (Pulsar2 rejects unknown domains)
 * lists the operators so you can check they are all NPU-supported
   (BEST_WALK_ONNX_2.onnx uses Gemm, Mul, Sigmoid, Split, Sub, Tanh)
@@ -25,7 +25,8 @@ m.opset_import.extend(keep)
 for vi, size in ((g.input[0], 101), (g.output[0], 14)):
     dims = vi.type.tensor_type.shape.dim
     dims[0].dim_value = 1
-    dims[1].dim_value = size
+    if not dims[1].dim_value:  # keep a fixed size (policies with extra inputs are > 101)
+        dims[1].dim_value = size
 
 m = shape_inference.infer_shapes(m)
 checker.check_model(m)

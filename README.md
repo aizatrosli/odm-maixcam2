@@ -18,12 +18,22 @@ These stay exactly the same, because the policy depends on them: the 101-value o
 
 ## Wiring
 
-All MaixCAM2 IO is **3.3 V**. Do not connect 5 V signals.
+The full pin table, connector map and power layout are in [docs/WIRING.md](docs/WIRING.md). In short (all MaixCAM2 IO is **3.3 V**):
 
-- **Power:** feed the MaixCAM2 from the duck's 5 V buck, the same one that powered the Pi.
-- **Servos:** either keep the Waveshare bus-servo adapter on USB (the MaixCAM2 Type-C port in host/OTG mode, giving `/dev/ttyACM0`), or wire the adapter's UART header to a MaixCAM2 UART and set `servo_port` (for example `/dev/ttyS1`) plus the `pinmap` entries. The bus runs at 1 Mbps.
-- **BNO055:** to the MaixCAM2 I2C pins (3.3 V, GND, SDA, SCL). The bus is found automatically at start-up, or set `imu_i2c_bus`.
-- **Foot switches:** two GPIOs to GND, using internal pull-ups. Run `python3 scripts/find_pins.py` on the board and set `left_foot_gpio` / `right_foot_gpio`. **The defaults `GPIOA4`/`GPIOA5` are placeholders, so check them against the pinout before you use them.**
+![MaixCAM2 to Open Duck Mini v2 wiring](docs/images/maixcam2-duck-wiring.png)
+
+<sub>Base pinout drawing: [Sipeed MaixCAM2 pins](https://wiki.sipeed.com/hardware/en/maixcam/maixcam2.html). Duck labels added for this project.</sub>
+
+
+| Part | MaixCAM2 |
+|---|---|
+| UBEC 5 V | 5V + GND on the right header |
+| Servo driver board | Type-C in USB host mode (`/dev/ttyACM0`), or UART4 `A21`/`A22` (`/dev/ttyS4`) |
+| BNO055 | 3V3, GND, `A8` I2C7_SCL, `A9` I2C7_SDA |
+| Foot switches (to GND) | left `B21`, right `B20` |
+| Antenna servos | `A31` PWM7, `B2` PWM4 |
+| Eye LEDs, projector | `B3` PWM5, `A30` PWM6, `A4` GPIO |
+| Speaker, mic, camera | onboard, no wiring |
 
 ## Setup on the MaixCAM2
 
@@ -41,7 +51,7 @@ If you already have a `duck_config.json` from the Pi, reuse it and add the `maix
 ## Bring-up, in order
 
 ```bash
-python3 scripts/find_pins.py               # pick I2C / GPIO pins
+python3 scripts/find_pins.py               # check the pins in docs/WIRING.md
 python3 scripts/check_motors.py            # all 14 servos answer, torque off
 python3 scripts/test_imu.py                # upright -> accelero ~ [0, 0, +9.8]
 python3 scripts/test_imu.py --calibrate    # saves ~/imu_offsets.json
@@ -90,6 +100,10 @@ python3 scripts/walk.py --follow           # walk and follow
 ```
 
 Before walking, use `test_vision.py` to check three things. First, a person on the right of the image gives a negative `wz` (turn right). Second, `head_yaw` moves the head toward the person; if it doesn't, set `follow.head_yaw_sign` (and `head_pitch_sign`) to -1. Third, set `hfov_deg` to your lens. If the camera is mounted in the head, set `camera_on_head: true` so the head angle is taken into account. All tuning lives under `maixcam2.vision.follow` in `duck_config.json` (see `odm_maix/vision/follow.py`).
+
+## Better walking policy (step 3)
+
+`training/` retrains the walking policy in Open_Duck_Playground so that it matches follow mode, where the head moves while the duck walks. The stock policy never trained with that. See [training/README.md](training/README.md). A trained policy comes as `name.onnx` plus a `name.json` *policy profile*, which `walk.py` reads automatically. A policy without a profile runs exactly as before.
 
 ## Benchmark the NPU and the control loop
 

@@ -13,14 +13,17 @@ from typing import Optional
 import numpy as np
 
 from .config import JOINT_NAMES
+from .policy_profile import STOCK_PROFILE
 from .rl_utils import GaitPhase, LowPassActionFilter
 
 NUM_DOFS = 14
 HEAD_SLICE = slice(5, 9)  # neck_pitch, head_pitch, head_yaw, head_roll
 
 
-def build_obs(gyro, accelero, commands, dof_pos, init_pos, dof_vel, last_actions, motor_targets, feet, phase):
-    """101 floats, same order as the Pi runtime."""
+def build_obs(
+    gyro, accelero, commands, dof_pos, init_pos, dof_vel, last_actions, motor_targets, feet, phase, extra=()
+):
+    """101 floats in the Pi runtime's order, then any extra inputs from the policy profile."""
     a1, a2, a3 = last_actions
     return np.concatenate(
         [
@@ -35,6 +38,7 @@ def build_obs(gyro, accelero, commands, dof_pos, init_pos, dof_vel, last_actions
             motor_targets,  # 14
             feet,  # 2
             phase,  # 2
+            np.asarray(extra, dtype=np.float32).reshape(-1),  # profile extra_obs, usually empty
         ]
     ).astype(np.float32)
 
@@ -58,6 +62,7 @@ class RLWalk:
         action_scale: float = 0.25,
         cutoff_frequency: Optional[float] = None,
         save_obs_path: Optional[str] = None,
+        profile: Optional[dict] = None,
     ):
         self.config = config
         self.hwi = hwi
@@ -67,7 +72,12 @@ class RLWalk:
         self.commands = commands
         self.control_freq = control_freq
         self.pid = pid
-        self.action_scale = action_scale
+        self.profile = dict(profile or STOCK_PROFILE)
+        # an explicit profile wins over the CLI default
+        self.action_scale = self.profile.get("action_scale", action_scale) if profile else action_scale
+        self.motor_speed_limit = self.profile.get("motor_speed_limit")
+        self.apply_head_commands = self.profile.get("apply_head_commands", True)
+        self.extra_obs_names = list(self.profile.get("extra_obs", []))
         self.save_obs_path = save_obs_path
         self.saved_obs = []
 
@@ -79,6 +89,7 @@ class RLWalk:
         self.init_pos = np.array([hwi.init_pos[j] for j in JOINT_NAMES])
         self.last_actions = [np.zeros(NUM_DOFS) for _ in range(3)]
         self.motor_targets = self.init_pos.copy()
+        self.policy_targets = self.init_pos.copy()  # before head offsets, for the speed limit
         self.last_commands = np.zeros(7)
         self.paused = config.start_paused
 
@@ -96,6 +107,20 @@ class RLWalk:
         self.hwi.turn_on()
         time.sleep(2)
 
+    def extra_obs(self) -> np.ndarray:
+        """Extra policy inputs (camera features), asked from the command source by name."""
+        if not self.extra_obs_names:
+            return np.zeros(0, dtype=np.float32)
+        get = getattr(self.commands, "extra_obs", None)
+        if get is None:
+            raise RuntimeError(
+                f"policy needs extra inputs {self.extra_obs_names} but the command source has no extra_obs()"
+            )
+        x = np.asarray(get(self.extra_obs_names), dtype=np.float32).reshape(-1)
+        if len(x) != len(self.extra_obs_names):
+            raise RuntimeError(f"extra_obs() returned {len(x)} values, policy expects {len(self.extra_obs_names)}")
+        return x
+
     def get_obs(self):
         imu = self.imu.get_data()
         dof_pos, dof_vel = self.hwi.get_present_positions_velocities()
@@ -112,6 +137,7 @@ class RLWalk:
             self.motor_targets,
             np.array(self.feet_contacts.get(), dtype=np.float32),
             self.phase.phase,
+            self.extra_obs(),
         )
 
     def step(self, t_start: float) -> bool:
@@ -139,15 +165,22 @@ class RLWalk:
         self.infer_times.append(time.perf_counter() - ti)
 
         self.last_actions = [action.copy(), self.last_actions[0], self.last_actions[1]]
-        self.motor_targets = self.init_pos + action * self.action_scale
+        targets = self.init_pos + action * self.action_scale
+
+        if self.motor_speed_limit:
+            step = self.motor_speed_limit / self.control_freq
+            targets = np.clip(targets, self.policy_targets - step, self.policy_targets + step)
 
         if self.action_filter is not None:
-            self.action_filter.push(self.motor_targets)
+            self.action_filter.push(targets)
             filtered = self.action_filter.get_filtered_action()
             if time.monotonic() - t_start > 1:  # let the filter settle
-                self.motor_targets = filtered
+                targets = filtered
 
-        self.motor_targets[HEAD_SLICE] = self.last_commands[3:] + self.motor_targets[HEAD_SLICE]
+        self.policy_targets = np.array(targets, dtype=np.float64)
+        self.motor_targets = self.policy_targets.copy()
+        if self.apply_head_commands:
+            self.motor_targets[HEAD_SLICE] += self.last_commands[3:]
         self.hwi.set_position_array(self.motor_targets)
         return True
 
