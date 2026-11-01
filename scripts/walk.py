@@ -9,7 +9,7 @@ import argparse
 
 from _common import DEFAULT_CONFIG_PATH, load_config
 
-from odm_maix.commands import GamepadCommands, ZeroCommands
+from odm_maix.commands import FollowCommands, GamepadCommands, ZeroCommands
 from odm_maix.feet_contacts import FeetContacts, NoFeetContacts
 from odm_maix.hwi import HWI
 from odm_maix.imu import Imu
@@ -30,6 +30,7 @@ def main():
     p.add_argument("-c", "--control_freq", type=int, default=50)
     p.add_argument("--cutoff_frequency", type=float, default=None)
     p.add_argument("--no_gamepad", action="store_true", help="walk in place with zero commands")
+    p.add_argument("--follow", action="store_true", help="follow a person seen by the camera (NPU detector)")
     p.add_argument("--no_feet", action="store_true", help="foot switches not wired: report both feet down")
     p.add_argument("--save_obs", default=None, help="save observations to this .npy file")
     args = p.parse_args()
@@ -41,14 +42,20 @@ def main():
     print(f"policy: {backend} {policy_path}")
     policy = load_policy(backend, policy_path)
 
-    if args.no_gamepad:
-        commands = ZeroCommands()
-    else:
+    gamepad = None
+    if not args.no_gamepad:
         try:
-            commands = GamepadCommands()
+            gamepad = GamepadCommands()
         except Exception as e:
-            print(f"gamepad unavailable ({e}), walking in place")
-            commands = ZeroCommands()
+            print(f"gamepad unavailable ({e})")
+
+    if args.follow:
+        commands = FollowCommands(m["vision"], gamepad=gamepad)
+    elif gamepad is not None:
+        commands = gamepad
+    else:
+        print("no command source, walking in place")
+        commands = ZeroCommands()
 
     hwi = HWI(config)
     walker = RLWalk(

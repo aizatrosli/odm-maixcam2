@@ -57,6 +57,15 @@ DEFAULT_MAIXCAM2 = {
     # Pi runtime, or set nb_steps_in_period directly.
     "polynomial_coefficients_path": os.path.join(HOME_DIR, "polynomial_coefficients.pkl"),
     "nb_steps_in_period": None,
+    # Step 2: camera follow mode (scripts/walk.py --follow)
+    "vision": {
+        "model_path": "/root/models/yolo11n.mud",
+        "class_name": "person",
+        "conf_threshold": 0.5,
+        "show": False,  # draw boxes on the MaixCAM2 screen
+        # FollowParams overrides, see odm_maix/vision/follow.py
+        "follow": {},
+    },
 }
 
 
@@ -83,7 +92,9 @@ class DuckConfig:
         offsets = {j: 0.0 for j in JOINT_NAMES}
         offsets.update(data.get("joints_offsets", {}))
         maix = dict(DEFAULT_MAIXCAM2)
-        maix.update(data.get("maixcam2", {}))
+        user_maix = data.get("maixcam2", {})
+        maix.update(user_maix)
+        maix["vision"] = {**DEFAULT_MAIXCAM2["vision"], **user_maix.get("vision", {})}
         for k in ("imu_offsets_path", "policy_path", "polynomial_coefficients_path"):
             if maix.get(k):
                 maix[k] = os.path.expanduser(maix[k])

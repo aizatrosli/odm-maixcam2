@@ -38,6 +38,18 @@
         "policy_backend": "onnx",
         "policy_path": "~/BEST_WALK_ONNX_2.onnx",
         "polynomial_coefficients_path": "~/polynomial_coefficients.pkl",
-        "nb_steps_in_period": null
+        "nb_steps_in_period": null,
+        "vision": {
+            "model_path": "/root/models/yolo11n.mud",
+            "class_name": "person",
+            "conf_threshold": 0.5,
+            "show": false,
+            "follow": {
+                "hfov_deg": 70.0,
+                "camera_on_head": false,
+                "target_height": 0.55,
+                "head_track": true
+            }
+        }
     }
 }

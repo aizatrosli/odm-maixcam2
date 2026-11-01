@@ -72,6 +72,25 @@ python3 scripts/walk.py --backend npu --policy ~/out/walk_policy.mud
 
 The policy is a small MLP (101 -> 14), so the CPU handles it in well under a millisecond. Moving it to the NPU frees the CPU for the camera pipeline in step 2, and it is the same conversion path a future vision-aware policy will use. If the NPU result is worse, keep `policy_backend: "onnx"` for now and spend the NPU on vision.
 
+## Follow a person with the camera (step 2)
+
+`--follow` replaces the gamepad sticks with the camera. YOLO11n runs on the NPU in its own process, so camera and NPU work never stall the 50 Hz loop. A follow controller then turns the person it sees into walking commands:
+
+- it turns toward the person, and only walks forward once it is facing them (within 20 degrees)
+- it walks until the person's box fills `target_height` of the image, and stands still if they get closer than `stop_height`
+- the head tracks the person (yaw and pitch)
+- if it loses the person for 0.6 s, it ramps down to standing still
+- every command is rate-limited, and stays inside the ranges the stock policy was trained on
+
+The gamepad still works: A pauses, and pushing a stick overrides the camera.
+
+```bash
+python3 scripts/test_vision.py --show      # motors off: prints state, target and commands
+python3 scripts/walk.py --follow           # walk and follow
+```
+
+Before walking, use `test_vision.py` to check three things. First, a person on the right of the image gives a negative `wz` (turn right). Second, `head_yaw` moves the head toward the person; if it doesn't, set `follow.head_yaw_sign` (and `head_pitch_sign`) to -1. Third, set `hfov_deg` to your lens. If the camera is mounted in the head, set `camera_on_head: true` so the head angle is taken into account. All tuning lives under `maixcam2.vision.follow` in `duck_config.json` (see `odm_maix/vision/follow.py`).
+
 ## Tests
 
 ```bash
@@ -88,6 +107,7 @@ This was written against the documentation and has not run on a MaixCAM2 yet. Ch
 - whether the Pulsar2 config (`Numpy` calibration, `FP32` input, full `U16`) builds on your Pulsar2 version
 - `maix.nn.NN.forward` with a raw float tensor (the Sipeed docs only show image models)
 - whether onnxruntime installs with pip on the board image
+- that `/root/models/yolo11n.mud` ships on your MaixPy image (YOLO11 needs MaixPy 4.7.0 or later), and the camera FOV and head joint signs for follow mode
 
 ## Credits
 
