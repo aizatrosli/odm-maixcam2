@@ -124,6 +124,31 @@ python3 scripts/bench_npu.py --loop 30 --policy ~/out/walk_policy.mud --load out
 
 The first line times each model and records how much CMM it takes. YOLO11n is a reference point against Sipeed's published figure. The second runs the 50 Hz loop with the policy on the NPU while a ViT runs flat out in another process, and counts overruns. No servos move. Everything is saved to `bench_results.json`.
 
+## Debloat the MaixCAM2 and boot into the duck
+
+The stock image boots into Sipeed's launcher, runs some background services, and reserves 3 GB of the 4 GB board for the NPU/camera memory pool (CMM). Only about 62 MB of that pool is in use at idle, so Linux gets under 1 GB. `tools/system/setup_board.sh` trims this, and records every change so it can be undone:
+
+```bash
+sh tools/system/setup_board.sh audit                        # what runs, memory split, governor; changes nothing
+sh tools/system/setup_board.sh apply --dry-run --cmm 1024   # preview
+sh tools/system/setup_board.sh apply --cmm 1024             # debloat, install duck.service (not enabled yet)
+systemctl start duck; journalctl -u duck -f                 # try it
+sh tools/system/setup_board.sh apply --autostart --args "--follow"   # boot into the duck instead of the launcher
+reboot
+sh tools/system/setup_board.sh revert && reboot             # back to stock
+```
+
+`apply` does the following:
+- Disables package-update timers and daemons the duck doesn't use, such as `apt-daily`, `man-db`, `ModemManager`, `avahi` and `cups`, but only the ones present on your image. It leaves NPU, camera, USB, SSH and Wi-Fi units alone.
+- Keeps the journal in RAM (16 MB). Use `--keep-journal` to keep it on disk.
+- Installs `duck.service`, which runs `scripts/walk.py` with real-time priority and sets the CPU governor to `performance` first. It never auto-restarts, because a crash loop could make the robot lurch.
+- With `--autostart`, disables `launcher.service` and moves `/maixapp/auto_start.txt` aside.
+- With `--cmm MIB`, sets `maix_memory_cmm` in `/boot/configs` (needs a reboot). Start at 1024, then check peak usage with the full duck running (`grep -A1 CMM_USE_INFO /proc/ax_proc/mem_cmm_info`) and keep at least 2× that. A bigger NPU model needs its size + about 512 MB.
+
+While `duck.service` runs, MaixVision can't stop it, so run `systemctl stop duck` before developing from MaixVision. If the servo board uses the Type-C port, the USB network is gone, so make sure Wi-Fi SSH works before you enable `--autostart`. With `--autostart`, the duck starts its walk loop right after boot, so boot it on its stand or lying down.
+
+To set up more ducks, set up one board, back up its SD card or eMMC, and flash that image to the others.
+
 ## Tests
 
 ```bash
@@ -142,6 +167,7 @@ This was written against the documentation and has not run on a MaixCAM2 yet. Ch
 - whether the ViT benchmark configs (`op_types` U16 override, 5-D input for multi-frame) build on your Pulsar2 version
 - whether onnxruntime installs with pip on the board image
 - that `/root/models/yolo11n.mud` ships on your MaixPy image (YOLO11 needs MaixPy 4.7.0 or later), and the camera FOV and head joint signs for follow mode
+- `tools/system/setup_board.sh` on a real board: the systemd unit names Sipeed ships (`launcher.service`), the `/boot/configs` format, and that SCHED_FIFO is allowed for `duck.service`
 
 ## Credits
 
