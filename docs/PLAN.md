@@ -31,3 +31,14 @@ Follow mode code is in (`--follow`, `odm_maix/vision/`). It still needs testing 
 - [ ] Turn direction and head signs are right, and `hfov_deg` matches the lens
 - [ ] Walk and follow, then tune `target_height`, `k_turn` and `k_forward`
 - [ ] Obstacle stop is still to do. The plan is to use `maix.nn.DepthAnything` (relative depth) on the NPU, or a detector trained on obstacles.
+
+## Step 3 status
+
+Training code is in `training/` (see [training/README.md](../training/README.md)).
+
+- [x] Found a sim/robot mismatch: training never moves the head, but the robot applies head commands. In MuJoCo, head tracking doubles the stock policy's tracking error and causes falls (2/40 episodes).
+- [x] `FollowJoystick` training env, wider randomization, policy profiles, `sim_eval.py`
+- [x] Runtime reads policy profiles (head commands, motor speed limit, extra camera inputs)
+- [ ] First 300M-step training run on a GPU, then compare it with stock in `sim_eval.py`
+- [ ] Try it on the robot (CPU first, then NPU)
+- [ ] Later: camera-input policy (target bearing, or a small vision-encoder embedding) through `extra_obs`

@@ -130,6 +130,31 @@ class FollowCommands:
     def state(self):
         return self.controller.state
 
+    def extra_obs(self, names):
+        """Camera features for policies whose profile lists extra inputs.
+
+        Known names: target_visible, target_bearing_sin, target_bearing_cos,
+        target_size (box height, 0..1). Unknown names raise, so a profile
+        that needs a feature this runtime cannot provide fails at start-up.
+        """
+        import math
+
+        from .vision.follow import pixel_to_angle
+
+        t = self.controller.target
+        visible = t is not None
+        bearing = pixel_to_angle(t.cx, self.controller.params.hfov_deg) if visible else 0.0
+        feats = {
+            "target_visible": float(visible),
+            "target_bearing_sin": math.sin(bearing),
+            "target_bearing_cos": math.cos(bearing) if visible else 0.0,
+            "target_size": t.h if visible else 0.0,
+        }
+        try:
+            return [feats[n] for n in names]
+        except KeyError as e:
+            raise KeyError(f"camera feature {e} is not provided by FollowCommands") from None
+
     def stop(self):
         self.detector.stop()
         if self.gamepad is not None:
