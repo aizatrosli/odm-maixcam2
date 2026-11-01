@@ -28,6 +28,26 @@ FOLLOW_PROFILE = {
 }
 
 
+STOCK_RETRAIN_PROFILE = {
+    # Upstream Joystick task retrained with this repo's trainer. The training
+    # env clips target changes to 5.24 rad/s, so the runtime should too.
+    **STOCK_PROFILE,
+    "name": "stock_retrain",
+    "motor_speed_limit": 5.24,
+}
+
+STANDING_PROFILE = {
+    # Upstream Standing task. 85-value observation, not run by scripts/walk.py yet.
+    "name": "standing",
+    "obs_layout": "standing_85",
+    "extra_obs": [],
+    "action_scale": 0.25,
+    "apply_head_commands": True,
+    "motor_speed_limit": None,  # the Standing env does not clip target changes
+    "head_in_motor_targets_obs": False,
+}
+
+
 def save_profile(onnx_path: str, profile: dict) -> str:
     path = onnx_path[: -len(".onnx")] + ".json" if onnx_path.endswith(".onnx") else onnx_path + ".json"
     with open(path, "w") as f:
