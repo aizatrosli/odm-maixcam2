@@ -14,6 +14,7 @@ from odm_maix.feet_contacts import FeetContacts, NoFeetContacts
 from odm_maix.hwi import HWI
 from odm_maix.imu import Imu
 from odm_maix.policy import load_policy
+from odm_maix.policy_profile import load_profile, obs_size
 from odm_maix.rl_utils import nb_steps_from_config
 from odm_maix.walk import RLWalk
 
@@ -39,8 +40,11 @@ def main():
     m = config.maixcam2
     backend = args.backend or m["policy_backend"]
     policy_path = args.policy or m["policy_path"]
-    print(f"policy: {backend} {policy_path}")
-    policy = load_policy(backend, policy_path)
+    profile = load_profile(policy_path)
+    print(f"policy: {backend} {policy_path}  profile: {profile['name']}")
+    policy = load_policy(backend, policy_path, obs_size=obs_size(profile))
+    if getattr(policy, "obs_size", obs_size(profile)) != obs_size(profile):
+        raise SystemExit(f"policy expects {policy.obs_size} inputs but its profile describes {obs_size(profile)}")
 
     gamepad = None
     if not args.no_gamepad:
@@ -71,6 +75,7 @@ def main():
         action_scale=args.action_scale,
         cutoff_frequency=args.cutoff_frequency,
         save_obs_path=args.save_obs,
+        profile=profile,
     )
     walker.start()
     walker.imu = Imu(config, sampling_freq=args.control_freq)

@@ -126,3 +126,14 @@ def test_vision_config_merges_defaults(tmp_path):
     f.write_text('{"maixcam2": {"vision": {"show": true}}}')
     v = DuckConfig.load(str(f)).maixcam2["vision"]
     assert v["show"] is True and v["class_name"] == "person"
+
+
+def test_follow_extra_obs():
+    det = FakeDetector()
+    det.dets = [Detection(0.75, 0.5, 0.1, 0.3)]
+    fc = FollowCommands(DuckConfig().maixcam2["vision"], detector=det, clock=lambda: 0.0)
+    fc.get()
+    vis, s, c, size = fc.extra_obs(["target_visible", "target_bearing_sin", "target_bearing_cos", "target_size"])
+    assert vis == 1.0 and s > 0 and c > 0.9 and size == pytest.approx(0.3)
+    with pytest.raises(KeyError):
+        fc.extra_obs(["jepa_0"])
