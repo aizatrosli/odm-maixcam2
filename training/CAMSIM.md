@@ -14,6 +14,10 @@ Use it to:
 
 ## Run
 
+The quickest way is Docker: `docker compose run --rm sim` from the repo root, or the shared notebook [`camsim.ipynb`](camsim.ipynb) in the JupyterLab service. See [docker/README.md](../docker/README.md).
+
+By hand:
+
 From an Open_Duck_Playground checkout, set up as in [README.md](README.md). Both `training/` and the repo root go on `PYTHONPATH`, because the controller is `odm_maix.vision.follow`:
 
 ```bash

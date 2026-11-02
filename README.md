@@ -141,6 +141,8 @@ Three NPU models now share one camera frame, so check the detector frame rate in
 
 `training/` retrains the walking policy in Open_Duck_Playground so that it matches follow mode, where the head moves while the duck walks. The stock policy never trained with that. See [training/README.md](training/README.md). A trained policy comes as `name.onnx` plus a `name.json` *policy profile*, which `walk.py` reads automatically. A policy without a profile runs exactly as before.
 
+`training/CAMSIM.md` simulates the MaixCAM2 camera and follow mode in MuJoCo, with V-JEPA/DINOv2 encoders on its frames. `docker compose` runs it all self-hosted, with a JupyterLab several people can edit at once and a Pulsar2 service for conversion: see [docker/README.md](docker/README.md).
+
 ## Benchmark the NPU and the control loop
 
 These numbers decide which camera encoder (step 3) the duck can afford. On a PC with Docker and Pulsar2, build ViT encoders of several sizes (random weights, since only the architecture sets the speed):
