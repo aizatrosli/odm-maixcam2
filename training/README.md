@@ -38,6 +38,10 @@ Extra inputs leave room for camera-aware policies. A profile can list `extra_obs
 
 Open it in Colab from GitHub (File → Open notebook → GitHub → `aizatrosli/odm-maixcam2`), pick a GPU runtime and run all cells. It also runs in local Jupyter on any NVIDIA GPU. Use `NUM_ENVS = 4096` on 8 GB cards and `2048` on 4 GB cards.
 
+## Camera simulator
+
+[CAMSIM.md](CAMSIM.md) runs follow mode in MuJoCo with a simulated MaixCAM2 camera, a person to follow and a randomized room. It writes videos and camera datasets.
+
 ## Flavors
 
 `python -m odm_train.train --list_flavors` prints them. They are defined in `odm_train/flavors.py`:

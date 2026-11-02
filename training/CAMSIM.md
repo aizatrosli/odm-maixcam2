@@ -1,0 +1,78 @@
+# Camera simulator (MaixCAM2 + follow mode in MuJoCo)
+
+`odm_train/camsim/` adds the MaixCAM2 camera, a person to follow and a randomized room to Open_Duck_Playground's MuJoCo duck. It then runs the robot runtime's own loop at 50 Hz:
+
+```
+camera frame (15 Hz, 66 ms late) -> person box -> odm_maix FollowController -> 7 commands -> walking policy (ONNX)
+```
+
+Use it to:
+
+- watch follow mode end to end before trying it on the robot (`--video`),
+- record datasets of camera frames with ground truth for the JEPA encoder work (`--record`),
+- run policies whose profile lists camera inputs (`target_*`, `emb_<i>`) the way `walk.py` would.
+
+## Run
+
+From an Open_Duck_Playground checkout, set up as in [README.md](README.md). Both `training/` and the repo root go on `PYTHONPATH`, because the controller is `odm_maix.vision.follow`:
+
+```bash
+cd Open_Duck_Playground
+export PYTHONPATH=$PYTHONPATH:$PWD:/path/to/odm-maixcam2/training:/path/to/odm-maixcam2
+pip install imageio imageio-ffmpeg           # for --video (falls back to GIF without ffmpeg)
+
+python -m odm_train.camsim.follow_sim ../Open_Duck_Mini/BEST_WALK_ONNX_2.onnx --episodes 3 --video follow.mp4
+python -m odm_train.camsim.follow_sim policy.onnx --episodes 20 --record follow.npz   # dataset
+python -m odm_train.camsim.follow_sim policy.onnx --episodes 50 --no_render           # fast, boxes from geometry only
+python -m odm_train.camsim.follow_sim policy.onnx --mount trunk                      # camera_on_head: false
+```
+
+Each episode prints whether the duck fell, how often the person was tracked (`target_seen`), the share of time spent 0.6 to 2 m from the person (`in_follow_range`), the mean distance, and the mean absolute bearing of the person from the duck's heading.
+
+Rendering uses `MUJOCO_GL=egl` when an NVIDIA device is visible and OSMesa (CPU) otherwise. Set `MUJOCO_GL` yourself to override. On CPU, a 10 s episode with video takes about 30 s, and about 8 s with `--no_render`.
+
+## What is simulated
+
+| Part | Model | Default |
+|---|---|---|
+| Mount | `maixcam2` camera on `head_assembly` (moves with head yaw/pitch) or `trunk_assembly` | head, lens 7.5 cm ahead of the head centre |
+| Lens | Pinhole set by the horizontal FOV, plus radial distortion `k1`, `k2`. Rendered wider and resampled | 70 deg, 320x240, k1 = -0.08 |
+| Sensor | Exposure and white-balance offsets per episode, Gaussian noise, row blur from the camera's turn rate x exposure | ±15 %, ±6 %, σ 2.5, 8 ms |
+| Timing | Frames every `1/hz`, delivered `latency_ms` later on the 50 Hz clock | 15 Hz, 66 ms |
+| Person | 1.55 to 1.9 m, random clothes and skin. Walks between waypoints 0.9 to 3 m from the duck, pauses, starts in front | 0.15 to 0.45 m/s |
+| Distractor | A second person wandering the room. The controller's `pick_target` has to stay on the first one | on |
+| Detector | Box from projecting the person's geoms into the distorted image. Misses, jitter, no detection below 6 % of frame height | 5 % misses |
+| Room | 8 m square, walls, 8 props, 5 floor textures, 2 lights + headlight, all randomized per episode | |
+| Dynamics | Same randomization as `sim_eval.py` (floor friction, servo kp, torso mass) and 0 to 2 steps of action delay | |
+
+The added geoms are visual only. The duck doesn't collide with walls, props or people, and occlusion between people isn't modelled in the boxes.
+
+## Dataset (`--record`)
+
+One row per delivered camera frame, in a compressed `.npz`:
+
+| Key | Shape | Meaning |
+|---|---|---|
+| `frame` | N x 240 x 320 x 3, uint8 | the delivered image |
+| `box`, `box_valid` | N x 4, N | true person box (cx, cy, w, h; NaN when out of view) |
+| `dist`, `bearing` | N | ground truth: metres and radians (left positive) from the duck's heading |
+| `cmd` | N x 7 | commands sent on the delivery step |
+| `obs` | N x 101+ | policy observation on that step |
+| `t`, `episode` | N | time in the episode (s), episode index |
+| `emb` | N x E | encoder output, when an encoder is plugged in (step 2) |
+
+## Findings so far
+
+- **head_pitch sign.** In the MuJoCo model, positive `head_pitch` tilts the head up. `FollowParams.head_pitch_sign` defaults to +1 ("positive tilts down"), so the sim uses -1. Check which way your real head moves before enabling `camera_on_head` on the robot.
+- **sim_eval friction bug, fixed.** `Sim.randomize` set the friction of geom 0, which is part of the duck's trunk, not the floor. It now randomizes the floor.
+
+## Code
+
+| File | What |
+|---|---|
+| `camsim/scene.py` | `CameraConfig`, `SceneConfig`, `build_scene` (MjSpec), `VisualRandomizer` |
+| `camsim/lens.py` | Lens model and `FrameClock`, pure numpy, unit-tested in `tests/test_camsim.py` |
+| `camsim/camera.py` | `MaixCam2`: render, project, person box |
+| `camsim/person.py` | `PersonWalker` (with `manual` mode for the interactive app) |
+| `camsim/follow_sim.py` | `FollowSim` (one control step at a time, for the notebook and the app), `Recorder`, `VideoWriter`, CLI |
+| `camsim/gl.py` | Picks EGL or OSMesa before MuJoCo is imported |

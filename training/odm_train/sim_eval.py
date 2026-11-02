@@ -79,16 +79,20 @@ class CommandProcess:
 
 
 class Sim(MJInferBase):
-    def __init__(self):
-        super().__init__(XML)
-        self.base_friction = self.model.geom_friction[0, 0]
+    def __init__(self, xml=XML):
+        super().__init__(xml)
+        self._cache_model()
+
+    def _cache_model(self):
+        """Ids and nominal values that randomize() starts from (call again after swapping self.model)."""
+        self.floor = self.model.geom("floor").id
         self.base_kp = self.model.actuator_gainprm[:, 0].copy()
         self.torso = self.model.body("trunk_assembly").id
         self.base_torso_mass = self.model.body_mass[self.torso]
         self.linvel_adr = self.model.sensor_adr[self.model.sensor("local_linvel").id]
 
     def randomize(self, rng):
-        self.model.geom_friction[0, 0] = rng.uniform(0.4, 1.2)
+        self.model.geom_friction[self.floor, 0] = rng.uniform(0.4, 1.2)
         f = rng.uniform(0.8, 1.2, size=self.model.nu)
         self.model.actuator_gainprm[:, 0] = self.base_kp * f
         self.model.actuator_biasprm[:, 1] = -self.base_kp * f
@@ -104,62 +108,87 @@ class Sim(MJInferBase):
         return self.data.xmat[self.torso][8] > 0.3
 
 
+class PolicyStepper:
+    """One 50 Hz control step the way odm_maix/walk.py runs it: observation,
+    policy, action latency, motor speed limit, head commands on the head."""
+
+    def __init__(self, sim, policy, profile, prm_steps, rng, latency):
+        self.sim, self.policy, self.profile = sim, policy, profile
+        self.prm_steps, self.rng, self.latency = prm_steps, rng, latency
+        self.reset()
+
+    def reset(self):
+        self.default = self.sim.default_actuator.copy()
+        self.last = [np.zeros(14)] * 3
+        self.targets = self.default.copy()  # observed (includes head offsets)
+        self.policy_targets = self.default.copy()
+        self.pending = []
+        self.phase_i = 0.0
+        self.phase = np.zeros(2)
+
+    def observe(self, cmd, extra=None):
+        sim = self.sim
+        contacts = np.array(sim.get_feet_contacts(sim.data), dtype=np.float32)
+        parts = [
+            sim.get_gyro(sim.data),
+            sim.get_accelerometer(sim.data),
+            cmd,
+            sim.get_actuator_joints_qpos(sim.data.qpos) - self.default,
+            sim.get_actuator_joints_qvel(sim.data.qvel) * 0.05,
+            self.last[0],
+            self.last[1],
+            self.last[2],
+            self.targets,
+            contacts,
+            self.phase,
+        ]
+        if extra is not None and len(extra):
+            parts.append(np.asarray(extra, dtype=np.float32).reshape(-1))
+        return np.concatenate(parts).astype(np.float32)
+
+    def step(self, cmd, extra=None, record=None):
+        """Run one control step with command ``cmd``; returns the observation used."""
+        sim = self.sim
+        obs = self.observe(cmd, extra)
+        self.phase_i = (self.phase_i + 1) % self.prm_steps
+        a = self.phase_i / self.prm_steps * 2 * np.pi
+        self.phase = np.array([np.cos(a), np.sin(a)])
+
+        if record is not None:
+            record.append(obs)
+        action = self.policy.run(None, {"obs": obs[None]})[0][0]
+        self.last = [action.copy(), self.last[0], self.last[1]]
+        self.pending.append(action)
+        delay = self.rng.integers(0, self.latency + 1)
+        applied = self.pending[max(0, len(self.pending) - 1 - delay)]
+        self.pending = self.pending[-(self.latency + 1) :]
+
+        new_targets = self.default + applied * self.profile["action_scale"]
+        vmax = self.profile.get("motor_speed_limit")
+        if vmax:
+            new_targets = np.clip(
+                new_targets, self.policy_targets - vmax * CTRL_DT, self.policy_targets + vmax * CTRL_DT
+            )
+        self.policy_targets = new_targets
+        self.targets = self.policy_targets.copy()
+        if self.profile.get("apply_head_commands", True):
+            self.targets[HEAD] += cmd[3:7]
+        sim.data.ctrl[:] = self.targets
+        for _ in range(sim.decimation):
+            mujoco.mj_step(sim.model, sim.data)
+        return obs
+
+
 def run_episode(sim, policy, profile, prm_steps, rng, seconds, head, mode, latency, record=None):
     sim.randomize(rng)
     sim.reset()
     cmds = CommandProcess(rng, head, mode)
-    default = sim.default_actuator.copy()
-    last = [np.zeros(14)] * 3
-    targets = default.copy()  # observed (includes head offsets)
-    policy_targets = default.copy()
-    pending = []
-    phase_i = 0.0
-    phase = np.zeros(2)
-    vmax = profile.get("motor_speed_limit")
+    stepper = PolicyStepper(sim, policy, profile, prm_steps, rng, latency)
     err_vx, err_wz = [], []
     steps = int(seconds / CTRL_DT)
     for k in range(steps):
         cmd = cmds.step()
-        contacts = np.array(sim.get_feet_contacts(sim.data), dtype=np.float32)
-        obs = np.concatenate(
-            [
-                sim.get_gyro(sim.data),
-                sim.get_accelerometer(sim.data),
-                cmd,
-                sim.get_actuator_joints_qpos(sim.data.qpos) - default,
-                sim.get_actuator_joints_qvel(sim.data.qvel) * 0.05,
-                last[0],
-                last[1],
-                last[2],
-                targets,
-                contacts,
-                phase,
-            ]
-        ).astype(np.float32)
-        phase_i = (phase_i + 1) % prm_steps
-        a = phase_i / prm_steps * 2 * np.pi
-        phase = np.array([np.cos(a), np.sin(a)])
-
-        if record is not None:
-            record.append(obs)
-        action = policy.run(None, {"obs": obs[None]})[0][0]
-        last = [action.copy(), last[0], last[1]]
-        pending.append(action)
-        delay = rng.integers(0, latency + 1)
-        applied = pending[max(0, len(pending) - 1 - delay)]
-        pending = pending[-(latency + 1) :]
-
-        new_targets = default + applied * profile["action_scale"]
-        if vmax:
-            new_targets = np.clip(new_targets, policy_targets - vmax * CTRL_DT, policy_targets + vmax * CTRL_DT)
-        policy_targets = new_targets
-        targets = policy_targets.copy()
-        if profile.get("apply_head_commands", True):
-            targets[HEAD] += cmd[3:7]
-        sim.data.ctrl[:] = targets
-        for _ in range(sim.decimation):
-            mujoco.mj_step(sim.model, sim.data)
-
+        stepper.step(cmd, record=record)
         if not sim.upright():
             return False, (k + 1) * CTRL_DT, err_vx, err_wz
         if k * CTRL_DT > 1.0:  # skip the start
