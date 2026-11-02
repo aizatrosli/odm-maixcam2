@@ -26,7 +26,9 @@ RUN python3 -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
 COPY docker/requirements.txt /tmp/requirements.txt
 RUN pip install "${JAX}" -r /tmp/requirements.txt \
-    && pip install "${TORCH}" --index-url "${TORCH_INDEX}"
+    && pip install "${TORCH}" --index-url "${TORCH_INDEX}" \
+    && pip install --no-deps mjviser==0.0.16
+# (mjviser asks for mujoco>=3.6, but the training stack pins 3.3.7; the viewer works on 3.3.7)
 # mujoco_playground fetches MuJoCo Menagerie into site-packages on first import; do it now,
 # because the services run as your user and can't write there
 RUN MUJOCO_GL=osmesa python -c "import mujoco_playground" \

@@ -1,9 +1,9 @@
 # Self-hosted camera simulator, notebooks and model conversion. See docker/README.md.
 #
 #   cp docker/.env.example .env      # set JUPYTER_TOKEN (and UID/GID if not 1000)
-#   docker compose up -d lab tensorboard
-#   docker compose run --rm sim                        # one follow-mode run -> work/camsim/
-#   docker compose --profile convert run --rm pulsar2 tools/convert/convert_policy.sh policy.onnx obs.npy
+#   docker compose up -d lab sim tensorboard          # notebooks :8888, interactive sim :8080 (+ gamepad page :8081)
+#   docker compose run --rm sim python -m odm_train.camsim.follow_sim /opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx --video /work/camsim/follow.mp4
+#   docker compose --profile convert run --rm pulsar2 /workspace/odm-maixcam2/tools/convert/convert_policy.sh /work/policy.onnx /work/obs.npy
 #
 # NVIDIA GPU: add -f compose.gpu.yaml to every command (or COMPOSE_FILE=compose.yaml:compose.gpu.yaml in .env).
 
@@ -33,17 +33,21 @@ services:
       - "${BIND:-127.0.0.1}:${LAB_PORT:-8888}:8888"
     restart: unless-stopped
 
+  # Interactive simulator: 3D view, MaixCAM2 image, plots, sliders (8080) and the gamepad page (8081).
+  # One-off runs use the same service: docker compose run --rm sim python -m odm_train.camsim.follow_sim ...
   sim:
     <<: *duck
     working_dir: /opt/Open_Duck_Playground
     command:
       - python
       - -m
-      - odm_train.camsim.follow_sim
-      - /opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx
-      - --episodes=2
-      - --seconds=15
-      - --video=/work/camsim/follow.mp4
+      - odm_train.camsim.app
+      - ${SIM_POLICY:-/opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx}
+      - --mount=${SIM_MOUNT:-head}
+    ports:
+      - "${BIND:-127.0.0.1}:${SIM_PORT:-8080}:8080"
+      - "${BIND:-127.0.0.1}:${PAD_PORT:-8081}:8081"
+    restart: unless-stopped
 
   tensorboard:
     <<: *duck

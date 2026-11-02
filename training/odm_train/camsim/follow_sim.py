@@ -82,6 +82,7 @@ class FollowSim:
         self.rng = np.random.default_rng(seed)
         self.randomize_dynamics, self.randomize_visuals, self.do_render = randomize_dynamics, randomize_visuals, render
         self.encoder = encoder
+        self.cmd_override: Optional[np.ndarray] = None  # set to drive by hand (the app's gamepad); None = follow
 
         # duck sim with the camera scene swapped in (same joints, sensors, actuators)
         self.sim = Sim(xml)
@@ -220,6 +221,8 @@ class FollowSim:
         if new is not None:
             self.latest = new
         self.cmd = self.controller.update(new["dets"] if new is not None else [], self.t, CTRL_DT)
+        if self.cmd_override is not None:
+            self.cmd = np.asarray(self.cmd_override, dtype=float).copy()
         obs = self.stepper.step(self.cmd, self.extra_obs())
         self.t += CTRL_DT
         if not self.sim.upright():

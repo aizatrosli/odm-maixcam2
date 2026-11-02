@@ -21,6 +21,10 @@ imageio-ffmpeg==0.8.0
 matplotlib==3.11.2
 pyserial
 pytest
+# interactive app (camsim/app.py); mjviser is installed by the Dockerfile without its deps
+viser==1.1.1
+trimesh==5.2.0
+pillow==13.0.0
 # notebooks, edited by several people at once
 jupyterlab~=4.6.0
 jupyter-collaboration==5.0.4

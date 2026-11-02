@@ -65,6 +65,15 @@ One row per delivered camera frame, in a compressed `.npz`:
 | `t`, `episode` | N | time in the episode (s), episode index |
 | `emb` | N x E | projected encoder output, with `--encoder` (and `feat`, the raw features, after `encoders embed`) |
 
+## Interactive (`app.py`)
+
+```bash
+pip install viser==1.1.1 trimesh && pip install --no-deps mjviser==0.0.16   # mjviser asks for mujoco>=3.6; it works on 3.3.7
+python -m odm_train.camsim.app policy.onnx        # http://localhost:8080, gamepad and keyboard page on :8081
+```
+
+A browser 3D view (Viser, through mjviser) with the camera image, live plots, follow-controller and detector sliders, mouse pushes, and three modes: follow the person, drive the duck, or walk the person yourself. See [docker/README.md](../docker/README.md#interactive-simulator), where it is the `sim` service.
+
 ## JEPA encoders (`encoders.py`)
 
 The encoder runs on each delivered frame, and its projected output fills the policy inputs `emb_0..emb_<k-1>`, the same way `walk.py` would feed them on the robot.
@@ -108,4 +117,5 @@ python -m odm_train.camsim.encoders time --encoder vjepa2_1_base --res 160
 | `camsim/person.py` | `PersonWalker` (with `manual` mode for the interactive app) |
 | `camsim/follow_sim.py` | `FollowSim` (one control step at a time, for the notebook and the app), `Recorder`, `VideoWriter`, CLI |
 | `camsim/encoders.py` | V-JEPA 2.1, DINOv2, ONNX and stand-in encoders, `Projection` (PCA), `export_onnx`, CLI |
+| `camsim/app.py`, `camsim/pad.py` | Interactive Viser app; gamepad/keyboard page |
 | `camsim/gl.py` | Picks EGL or OSMesa before MuJoCo is imported |

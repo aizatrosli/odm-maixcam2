@@ -5,7 +5,7 @@ One image runs the camera simulator, JupyterLab with live collaborative editing,
 | Service | What | Port |
 |---|---|---|
 | `lab` | JupyterLab 4.6 with `jupyter-collaboration`: everyone with the token edits the same notebooks live, with shared cursors | 8888 |
-| `sim` | one follow-mode run with the simulated MaixCAM2, video to `work/camsim/` (or any command you give it) | |
+| `sim` | the interactive simulator: 3D view, the MaixCAM2 image, live plots, sliders; plus a gamepad/keyboard page | 8080, 8081 |
 | `tensorboard` | training curves from `work/runs/` | 6006 |
 | `pulsar2` (profile `convert`) | `tools/convert/convert_policy.sh` and `tools/bench_vit/build_vits.sh` without Docker-in-Docker | |
 
@@ -17,19 +17,32 @@ Your checkout is mounted at `/workspace/odm-maixcam2`, so notebook and code edit
 cp docker/.env.example .env        # set JUPYTER_TOKEN; set UID/GID to `id -u` / `id -g`
 mkdir -p work                      # before the first `up`, so it's owned by you and not root
 docker compose build               # 10-20 min the first time; ~1.5 GB CPU-only, much larger with CUDA jax
-docker compose up -d lab tensorboard
+docker compose up -d lab sim tensorboard
 ```
 
-Open http://localhost:8888/lab?token=YOUR_TOKEN and start with `training/camsim.ipynb`. Anyone else you give the URL and token to sees the same notebook and edits it with you. If a file changes on disk while it's open (a `git pull`, for example), the open copy reloads from disk within a second or so.
+Open http://localhost:8080 for the interactive simulator (below), and http://localhost:8888/lab?token=YOUR_TOKEN for the notebooks. Start with `training/camsim.ipynb`. Anyone else you give the URL and token to sees the same notebook and edits it with you. If a file changes on disk while it's open (a `git pull`, for example), the open copy reloads from disk within a second or so.
+
+## Interactive simulator
+
+http://localhost:8080 shows the duck, the person and the room in 3D. Next to it are the MaixCAM2 image as the robot gets it (15 Hz, 66 ms late, with the controller's target box) and live plots of distance, bearing and commands.
+
+- **Mode:** *Follow the person* (the camera drives the duck), *Drive the duck* (you send the walking commands), or *Walk the person* (you move the person and watch the duck follow).
+- **Gamepad and keyboard:** open http://localhost:8081 in another tab. It reads any browser gamepad (left stick walks, right stick turns, LB + right stick moves the head, A switches follow/drive, Start resets) or the keyboard (WASD, Q/E, Shift, Space, Enter). A separate page is needed because Viser only reports single key presses, not held keys or sticks.
+- **Mouse:** drag a body to push it, for example shove the duck sideways while it follows. Pause, step and change speed in the Controls tab.
+- **Sliders:** follow-controller gains and thresholds, missed detections and box jitter, person speed. They apply immediately.
+- Choose the policy and mount with `SIM_POLICY` and `SIM_MOUNT` in `.env`. On a CPU the simulation runs at roughly real time; the status box shows the actual rate.
+
+## One-off runs
 
 ```bash
-docker compose run --rm sim                                    # 2 episodes -> work/camsim/follow.mp4
+docker compose run --rm sim python -m odm_train.camsim.follow_sim /opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx \
+    --episodes 2 --video /work/camsim/follow.mp4               # video -> work/camsim/
 docker compose run --rm sim python -m odm_train.camsim.follow_sim /opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx \
     --episodes 20 --record /work/camsim/follow.npz             # any follow_sim / encoders / sim_eval command
 docker compose run --rm sim python -m pytest /workspace/odm-maixcam2/tests -q
 ```
 
-The stock walking policy is at `/opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx` and Open_Duck_Playground (pinned) at `/opt/Open_Duck_Playground`, which is the working directory of `sim`.
+The stock walking policy is at `/opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx` and Open_Duck_Playground (pinned) at `/opt/Open_Duck_Playground`, which is the working directory of `sim`. Without `--service-ports`, `run` doesn't publish ports, so it doesn't clash with the running app.
 
 ## NVIDIA GPU
 

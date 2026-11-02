@@ -148,3 +148,41 @@ def test_export_onnx_matches_torch(tmp_path):
     onnx_emb = OnnxEncoder(str(tmp_path / "e.onnx"))(frames)
     assert np.abs(onnx_emb - proj(feats)).max() < 1e-4
     assert EmbeddingPipeline(enc, proj)(frames[0]).shape == (4,)
+
+
+# --- step 4: gamepad page for the interactive app
+
+
+def test_pad_to_cmd_matches_robot_gamepad_ranges():
+    from odm_train.camsim.pad import pad_to_cmd
+
+    assert np.allclose(pad_to_cmd(0, -1, 0, 0), [0.15, 0, 0, 0, 0, 0, 0])  # stick up = forward
+    assert np.allclose(pad_to_cmd(-1, 0, 1, 0)[[1, 2]], [0.2, -1.0])  # left = +vy, right turn = -wz
+    assert not pad_to_cmd(0.05, 0.05, 0.05, 0.05).any()  # deadzone
+    head = pad_to_cmd(0, 0, 1, 1, head=True)
+    assert head[2] == 0 and head[5] < 0 and head[4] > 0
+
+
+def test_pad_server_roundtrip_and_taps():
+    import json
+    import urllib.request
+
+    from odm_train.camsim.pad import PadServer
+
+    pad = PadServer("127.0.0.1", 0)
+    pad.start()
+    port = pad.httpd.server_address[1]
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        assert b"Duck gamepad" in opener.open(f"http://127.0.0.1:{port}/").read()
+
+        def post(axes, buttons):
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/", data=json.dumps({"axes": axes, "buttons": buttons}).encode(), method="POST")
+            opener.open(req).read()
+
+        post([0, -1, 0, 0], [True] + [False] * 9)
+        post([0, -1, 0, 0], [False] * 10)
+        assert pad.connected() and pad.cmd()[0] > 0.14
+        assert pad.pop_buttons() == {"a"} and pad.pop_buttons() == set()  # one tap, reported once
+    finally:
+        pad.stop()
