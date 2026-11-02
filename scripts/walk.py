@@ -3,11 +3,13 @@
     python3 scripts/walk.py                       # CPU (onnxruntime), gamepad if found
     python3 scripts/walk.py --backend npu --policy ~/models/walk_policy.mud
     python3 scripts/walk.py --save_obs obs.npy    # record observations for NPU calibration
+    python3 scripts/walk.py --follow              # follow a person with the camera
+    python3 scripts/walk.py --interact            # follow + gestures, faces and moods
 """
 
 import argparse
 
-from _common import DEFAULT_CONFIG_PATH, load_config
+from _common import DEFAULT_CONFIG_PATH, load_config, make_interact_commands
 
 from odm_maix.commands import FollowCommands, GamepadCommands, ZeroCommands
 from odm_maix.feet_contacts import FeetContacts, NoFeetContacts
@@ -32,6 +34,11 @@ def main():
     p.add_argument("--cutoff_frequency", type=float, default=None)
     p.add_argument("--no_gamepad", action="store_true", help="walk in place with zero commands")
     p.add_argument("--follow", action="store_true", help="follow a person seen by the camera (NPU detector)")
+    p.add_argument(
+        "--interact",
+        action="store_true",
+        help="follow mode plus hand gestures, faces and moods (wave = come, open palm = stay)",
+    )
     p.add_argument("--no_feet", action="store_true", help="foot switches not wired: report both feet down")
     p.add_argument("--save_obs", default=None, help="save observations to this .npy file")
     args = p.parse_args()
@@ -53,7 +60,9 @@ def main():
         except Exception as e:
             print(f"gamepad unavailable ({e})")
 
-    if args.follow:
+    if args.interact:
+        commands = make_interact_commands(config, gamepad)
+    elif args.follow:
         commands = FollowCommands(m["vision"], gamepad=gamepad)
     elif gamepad is not None:
         commands = gamepad

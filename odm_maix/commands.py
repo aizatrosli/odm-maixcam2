@@ -1,6 +1,7 @@
 """Sources of walking commands: [vx, vy, wz, neck_pitch, head_pitch, head_yaw, head_roll].
 
-Step 2 adds a camera-driven source here with the same ``get()`` interface.
+FollowCommands is the camera-driven source (step 2); with ``interact=True`` it
+also reacts to hand gestures and faces, and drives the duck's expressions.
 """
 
 from __future__ import annotations
@@ -13,6 +14,22 @@ import numpy as np
 X_RANGE = [-0.15, 0.15]
 Y_RANGE = [-0.2, 0.2]
 YAW_RANGE = [-1.0, 1.0]
+
+# Interaction mode (walk.py --interact), see maixcam2.vision.interact in config.py
+DEFAULT_INTERACT = {
+    "hand_model": "/root/models/hand_landmarks.mud",
+    "faces": True,
+    "face_detect_model": "/root/models/yolov8n_face.mud",
+    "face_feature_model": "/root/models/insghtface_webface_r50.mud",
+    "faces_path": "/root/faces.bin",
+    "face_threshold": 0.85,
+    "hands_every": 2,  # run hand landmarks every N camera frames
+    "faces_every": 5,  # run face recognition every N camera frames
+    "camera_size": None,  # [w, h]; None = the person detector's input size
+    "screen_eyes": False,  # set from expression_features.screen_eyes by walk.py
+    "behavior": {},  # BehaviorParams overrides, see odm_maix/behavior.py
+    "gestures": {},  # GestureParams overrides, see odm_maix/vision/gestures.py
+}
 
 
 class ZeroCommands:
@@ -94,11 +111,20 @@ class FollowCommands:
     stick is pushed.
     """
 
-    def __init__(self, vision_cfg: dict, gamepad=None, detector=None, clock=time.monotonic):
+    def __init__(
+        self,
+        vision_cfg: dict,
+        gamepad=None,
+        detector=None,
+        clock=time.monotonic,
+        interact: bool = False,
+        expressions=None,
+    ):
         from .vision.follow import FollowController, FollowParams
 
         params = FollowParams(**vision_cfg.get("follow", {}))
         self.controller = FollowController(params)
+        interact_cfg = {**DEFAULT_INTERACT, **vision_cfg.get("interact", {})} if interact else None
         if detector is None:
             from .vision.detector import DetectorProcess
 
@@ -107,11 +133,25 @@ class FollowCommands:
                 class_name=vision_cfg.get("class_name", "person"),
                 conf=vision_cfg.get("conf_threshold", 0.5),
                 show=vision_cfg.get("show", False),
+                interact=interact_cfg,
             )
         self.detector = detector
         self.gamepad = gamepad
         self.clock = clock
         self._last_t = None
+
+        # interaction mode: gestures, faces, moods
+        self.behavior = self.gestures = None
+        self.expressions = expressions
+        self.expression = None
+        self.last_gesture = None
+        self.last_face = None
+        if interact_cfg is not None:
+            from .behavior import Behavior, BehaviorParams
+            from .vision.gestures import GestureParams, GestureTracker
+
+            self.behavior = Behavior(BehaviorParams(**interact_cfg.get("behavior", {})))
+            self.gestures = GestureTracker(GestureParams(**interact_cfg.get("gestures", {})))
 
     def get(self):
         now = self.clock()
@@ -119,6 +159,8 @@ class FollowCommands:
         self._last_t = now
         new, _, dets = self.detector.latest()
         cmd = self.controller.update(dets if new else [], now, dt)
+        if self.behavior is not None:
+            cmd = self._interact(cmd, now, dt)
         events = {}
         if self.gamepad is not None:
             pad_cmd, events = self.gamepad.get()
@@ -126,8 +168,30 @@ class FollowCommands:
                 cmd[:3] = pad_cmd[:3]
         return cmd, events
 
+    def _interact(self, cmd, now, dt):
+        gesture = None
+        new_h, hand = self.detector.latest_hand()
+        if new_h:
+            gesture = self.gestures.update(now, hand.pose if hand else None, hand.cx if hand else 0.5)
+            if gesture:
+                self.last_gesture = (now, gesture)
+        face_name, known = None, False
+        new_f, face = self.detector.latest_face()
+        if new_f and face is not None:
+            face_name, known = face.name, face.known
+            self.last_face = (now, face.name)
+        c = self.controller
+        target_h = c.target.h if (c.target is not None and c.state != "searching") else None
+        cmd, expr = self.behavior.update(now, dt, cmd, target_h, gesture, face_name, known)
+        self.expression = expr
+        if self.expressions is not None:
+            self.expressions.apply(expr, now)
+        return cmd
+
     @property
     def state(self):
+        if self.behavior is not None:
+            return f"{self.controller.state}/{self.behavior.mode}/{self.behavior.mood}"
         return self.controller.state
 
     def extra_obs(self, names):
@@ -157,5 +221,7 @@ class FollowCommands:
 
     def stop(self):
         self.detector.stop()
+        if self.expressions is not None:
+            self.expressions.stop()
         if self.gamepad is not None:
             self.gamepad.stop()

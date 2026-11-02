@@ -8,7 +8,8 @@
         "antennas": false,
         "speaker": false,
         "microphone": false,
-        "camera": false
+        "camera": false,
+        "screen_eyes": false
     },
     "joints_offsets": {
         "left_hip_yaw": 0.0,
@@ -52,7 +53,19 @@
                 "camera_on_head": false,
                 "target_height": 0.55,
                 "head_track": true
+            },
+            "interact": {
+                "faces": true,
+                "hands_every": 2,
+                "faces_every": 5,
+                "behavior": {
+                    "start_mode": "stay"
+                }
             }
+        },
+        "expression": {
+            "sounds_dir": "~/sounds",
+            "volume": 70
         }
     }
 }
