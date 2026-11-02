@@ -97,3 +97,54 @@ def test_follow_sim_runs_and_sees_the_person(monkeypatch):
     assert boxes > 0  # the person starts in front of the duck
     assert not sim.fallen
     sim.close()
+
+
+# --- step 2: encoders and projection
+
+
+def test_resize_squashes_to_square_in_0_1():
+    from odm_train.camsim.encoders import resize
+
+    frame = np.zeros((240, 320, 3), np.uint8)
+    frame[:, 160:] = 255  # right half white
+    x = resize(frame, 32)
+    assert x.shape == (1, 3, 32, 32) and x.dtype == np.float32
+    assert x[0, :, :, :15].max() == 0 and x[0, :, :, 17:].min() == 1
+
+
+def test_projection_fit_apply_save(tmp_path):
+    from odm_train.camsim.encoders import Projection
+
+    rng = np.random.default_rng(0)
+    feats = rng.normal(size=(200, 3)) @ rng.normal(size=(3, 32))  # rank 3
+    p = Projection.fit(feats, dim=4)
+    assert p(feats).shape == (200, 4) and p(feats[0]).shape == (4,)
+    assert p.explained[:3].sum() > 0.999
+    p.save(tmp_path / "p.npz")
+    q = Projection.load(tmp_path / "p.npz")
+    assert np.allclose(q(feats), p(feats))
+
+
+def test_export_onnx_matches_torch(tmp_path):
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("onnxruntime")
+    pytest.importorskip("onnx")
+    from odm_train.camsim.encoders import EmbeddingPipeline, OnnxEncoder, Projection, TorchEncoder, export_onnx
+
+    class Tiny(torch.nn.Module):  # stands in for V-JEPA / DINOv2: image -> pooled features
+        def __init__(self):
+            super().__init__()
+            self.patch = torch.nn.Conv2d(3, 8, 16, 16)
+
+        def forward(self, x):
+            return self.patch(x).flatten(2).mean(-1)
+
+    torch.manual_seed(0)
+    enc = TorchEncoder("tiny", Tiny(), 64)
+    frames = np.random.default_rng(0).integers(0, 255, (12, 240, 320, 3), dtype=np.uint8)
+    feats = enc(frames)
+    proj = Projection.fit(feats, dim=4)
+    assert export_onnx(enc, str(tmp_path / "e.onnx"), proj) < 1e-4
+    onnx_emb = OnnxEncoder(str(tmp_path / "e.onnx"))(frames)
+    assert np.abs(onnx_emb - proj(feats)).max() < 1e-4
+    assert EmbeddingPipeline(enc, proj)(frames[0]).shape == (4,)

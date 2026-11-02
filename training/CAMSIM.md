@@ -59,7 +59,35 @@ One row per delivered camera frame, in a compressed `.npz`:
 | `cmd` | N x 7 | commands sent on the delivery step |
 | `obs` | N x 101+ | policy observation on that step |
 | `t`, `episode` | N | time in the episode (s), episode index |
-| `emb` | N x E | encoder output, when an encoder is plugged in (step 2) |
+| `emb` | N x E | projected encoder output, with `--encoder` (and `feat`, the raw features, after `encoders embed`) |
+
+## JEPA encoders (`encoders.py`)
+
+The encoder runs on each delivered frame, and its projected output fills the policy inputs `emb_0..emb_<k-1>`, the same way `walk.py` would feed them on the robot.
+
+| `--encoder` | What | Input (default) | Features |
+|---|---|---|---|
+| `vjepa2_1_base`, `vjepa2_1_large` | V-JEPA 2.1 via `torch.hub` (pinned commit), official weights, one frame through the image patch embedding, tokens mean-pooled | 160 px (multiple of 16) | 768 / 1024 |
+| `dinov2_small`, `dinov2_base` | DINOv2 CLS embedding | 168 px (multiple of 14) | 384 / 768 |
+| `onnx:<path>` | any exported encoder: exactly the graph that goes to Pulsar2 | from the graph | from the graph |
+| `standin_<size>` | random-weight ViT from `tools/bench_vit`, no download; for tests and timing only | 160 px | 16 |
+
+Frames are squashed from 4:3 to square and normalized inside the encoder, the same as on the robot. A PCA projection (`Projection`) takes the features down to 16 to 32 values.
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu    # CPU torch is enough for a few frames per second
+
+# 1. record frames, 2. fit the projection on them, 3. drive the sim with encoder + projection
+python -m odm_train.camsim.follow_sim policy.onnx --episodes 20 --record follow.npz
+python -m odm_train.camsim.encoders embed follow.npz --encoder vjepa2_1_base --dim 16 --out follow_emb.npz   # also writes follow_emb_projection.npz
+python -m odm_train.camsim.follow_sim policy.onnx --encoder vjepa2_1_base --projection follow_emb_projection.npz --video emb.mp4
+
+# one ONNX (normalization + encoder + projection) for Pulsar2, checked against onnxruntime
+python -m odm_train.camsim.encoders export --encoder vjepa2_1_base --res 160 --projection follow_emb_projection.npz --out vjepa_b160_emb16.onnx
+python -m odm_train.camsim.encoders time --encoder vjepa2_1_base --res 160
+```
+
+`--encoder onnx:vjepa_b160_emb16.onnx` then runs the exported graph (projection included, so leave out `--projection`). The stand-in takes about 28 ms per frame on a laptop CPU at 160 px. The V-JEPA and DINOv2 paths load code from `torch.hub`; they weren't run in this repo's CI, so check the first export's printed `max |torch - onnxruntime|` before converting.
 
 ## Findings so far
 
@@ -75,4 +103,5 @@ One row per delivered camera frame, in a compressed `.npz`:
 | `camsim/camera.py` | `MaixCam2`: render, project, person box |
 | `camsim/person.py` | `PersonWalker` (with `manual` mode for the interactive app) |
 | `camsim/follow_sim.py` | `FollowSim` (one control step at a time, for the notebook and the app), `Recorder`, `VideoWriter`, CLI |
+| `camsim/encoders.py` | V-JEPA 2.1, DINOv2, ONNX and stand-in encoders, `Projection` (PCA), `export_onnx`, CLI |
 | `camsim/gl.py` | Picks EGL or OSMesa before MuJoCo is imported |

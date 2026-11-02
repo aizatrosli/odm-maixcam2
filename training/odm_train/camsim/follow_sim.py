@@ -324,6 +324,12 @@ def run(args):
         mount=args.mount, width=args.width, height=args.height, hfov_deg=args.hfov, hz=args.hz, latency_ms=args.latency_ms
     )
     scene = SceneConfig(distractor=not args.no_distractor, seed=args.seed)
+    encoder = None
+    if args.encoder:
+        from odm_train.camsim.encoders import EmbeddingPipeline, Projection, make_encoder
+
+        proj = Projection.load(args.projection) if args.projection else None
+        encoder = EmbeddingPipeline(make_encoder(args.encoder, args.encoder_res), proj)
     sim = FollowSim(
         args.policy,
         cam=cam,
@@ -332,7 +338,8 @@ def run(args):
         latency=args.latency,
         randomize_dynamics=not args.no_randomize,
         randomize_visuals=not args.no_randomize,
-        render=bool(args.video or args.record) or not args.no_render,
+        render=bool(args.video or args.record or encoder) or not args.no_render,
+        encoder=encoder,
     )
     rec = Recorder() if args.record else None
     video = VideoWriter(sim, args.video, cam.hz) if args.video else None
@@ -406,6 +413,10 @@ def main(argv=None):
     p.add_argument("--video", default=None, help="write head camera + third-person view (.mp4, or .gif without ffmpeg)")
     p.add_argument("--video_episodes", type=int, default=1)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--encoder", default=None,
+                   help="image encoder on each frame: vjepa2_1_base, dinov2_small, onnx:<path>, standin_small (see encoders.py)")
+    p.add_argument("--encoder_res", type=int, default=None, help="encoder input size (default per encoder)")
+    p.add_argument("--projection", default=None, help="projection .npz from `encoders embed`; the embedding fills emb_<i>")
     run(p.parse_args(argv))
 
 
