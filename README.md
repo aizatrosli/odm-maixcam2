@@ -149,6 +149,35 @@ While `duck.service` runs, MaixVision can't stop it, so run `systemctl stop duck
 
 To set up more ducks, set up one board, back up its SD card or eMMC, and flash that image to the others.
 
+## Encoder benchmark suite (step 3)
+
+A frozen set of candidate camera encoders, timed the same way on every run so results compare across days and boards. The plan behind it is in the project's "MaixCAM2 encoder benchmark plan" doc.
+
+| Model | Params | Sizes | Precision |
+|---|---|---|---|
+| V-JEPA 2.1 ViT-B/16 (Meta weights) | 86M | 224, 160 | INT8, INT8 + U16 norms |
+| DINOv2 ViT-S/14 | 22M | 224, 168 | INT8, INT8 + U16 norms |
+| DINOv3 ConvNeXt-Tiny | 29M | 224, 160 | INT8 |
+| DeiT-Tiny | 5.7M | 224, 160 | INT8, INT8 + U16 norms |
+| ResNet-18 | 11.7M | 224, 160 | INT8 |
+
+Build it on a PC with Docker and Pulsar2 (or use a prebuilt suite folder):
+
+```bash
+pip install torch timm onnx onnxsim onnxruntime safetensors pillow
+VJEPA21_DIR=path/to/vjepa2.1-vit-base-384 \
+  python3 tools/bench_suite/build_suite.py --images path/to/64_images --out suite --image pulsar2:6.0
+```
+
+Images 0-31 calibrate the quantiser and 32-63 are the fixed evaluation set. `manifest.json` records every build's hash, source and licence. Then on the board:
+
+```bash
+python3 scripts/bench_suite.py ~/suite --all --policy ~/out/walk_policy.mud   # about 20-30 min
+python3 tools/bench_suite/compare.py results/*.json --csv results.csv          # on the PC
+```
+
+Each model gets 20 warm-up runs and 3 rounds of 200, an accuracy check against the FP32 outputs (cosine on the 32 images), load time and CMM use. Scenarios: `idle`, `camera` (camera streaming, AI-ISP on), `e2e` (camera frame to embedding, per stage), `loop` (50 Hz loop while the model runs flat out) and `stack` (YOLO11n + model + 50 Hz loop). The runner waits for the SoC to cool below 70 °C before each model, checks every `.axmodel` against its manifest hash, and records temperatures, CPU governor and memory with the results.
+
 ## Tests
 
 ```bash
