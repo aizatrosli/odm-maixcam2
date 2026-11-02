@@ -125,6 +125,16 @@ python3 scripts/walk.py --interact
 
 Outputs are off until you turn them on in `expression_features`: `antennas` (servos on `A31`/`B2`), `eyes` (LEDs on `B3`/`A30`), `speaker` and `screen_eyes` (cartoon eyes on the MaixCAM2 screen, drawn by the vision process). Sounds are `.wav` files in `~/sounds/`, named after the mood: `happy`, `curious`, `startled`, `sleepy`, `hello`, `ok`; missing files are skipped. They play in a thread pinned to CPU core 1, away from the walk loop. Pins, servo directions and volume live under `maixcam2.expression`; gesture timing and moods under `maixcam2.vision.interact` (see `odm_maix/behavior.py` and `odm_maix/vision/gestures.py`).
 
+**With just the MaixCAM2** (no robot yet), everything except the legs, head and antennas works. `--board` needs no `duck_config.json`, sets no pins, and shows the eyes on the screen and plays sounds through the onboard speaker:
+
+```bash
+python3 scripts/make_sounds.py                # placeholder quacks in ~/sounds
+python3 scripts/enroll_face.py --name aizat   # optional
+python3 scripts/test_interact.py --board      # wave, palm, thumbs up, walk up close, leave for 30 s
+```
+
+The printed `vx`/`wz` and head values are what the duck would send to its motors.
+
 Three NPU models now share one camera frame, so check the detector frame rate in `test_interact.py`. If person tracking drops below ~10 fps, raise `hands_every` and `faces_every`, or set `"faces": false`.
 
 ## Better walking policy (step 3)

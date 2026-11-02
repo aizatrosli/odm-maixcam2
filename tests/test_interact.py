@@ -299,3 +299,12 @@ def test_follow_commands_interact_greets_face():
     fc = FollowCommands(DuckConfig().maixcam2["vision"], detector=v, clock=lambda: next(clock), interact=True)
     fc.get()
     assert fc.expression.sound == "hello" and fc.last_face[1] == "aizat"
+
+
+def test_placeholder_sounds_cover_every_sound_behavior_plays():
+    from odm_maix.sounds import RATE, SOUNDS, synth
+
+    for name in ("happy", "curious", "startled", "sleepy", "hello", "ok"):
+        assert name in SOUNDS
+        pcm = synth(name)
+        assert pcm.dtype == np.int16 and 0.05 * RATE < len(pcm) < 2 * RATE and np.abs(pcm).max() > 1000
