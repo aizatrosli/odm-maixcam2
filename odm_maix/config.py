@@ -67,7 +67,14 @@ DEFAULT_MAIXCAM2 = {
         "show": False,  # draw boxes on the MaixCAM2 screen
         # FollowParams overrides, see odm_maix/vision/follow.py
         "follow": {},
+        # Interaction mode (walk.py --interact): hand gestures, faces, moods.
+        # Overrides for DEFAULT_INTERACT in odm_maix/commands.py.
+        "interact": {},
     },
+    # Antenna / eye LED pins and sounds for expressions, overrides for
+    # DEFAULT_EXPRESSION_CFG in odm_maix/expression.py. Turn each output on
+    # with expression_features (antennas, eyes, speaker, screen_eyes).
+    "expression": {},
 }
 
 

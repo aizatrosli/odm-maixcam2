@@ -17,3 +17,16 @@ def load_config(path=DEFAULT_CONFIG_PATH, apply_pinmap=True):
             pinmap.set_pin_function(pin, func)
             print(f"pinmap {pin} -> {func}")
     return config
+
+
+def make_interact_commands(config, gamepad=None, show=False):
+    """FollowCommands in interaction mode, with the expression outputs from duck_config.json."""
+    from odm_maix.commands import FollowCommands
+    from odm_maix.expression import Expressions
+
+    vision = dict(config.maixcam2["vision"])
+    vision["show"] = show or vision.get("show", False)
+    vision["interact"] = {**vision.get("interact", {}), "screen_eyes": config.feature("screen_eyes")}
+    commands = FollowCommands(vision, gamepad=gamepad, interact=True)
+    commands.expressions = Expressions(config, mood_slot=commands.detector.mood)
+    return commands

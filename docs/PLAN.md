@@ -33,6 +33,16 @@ Follow mode code is in (`--follow`, `odm_maix/vision/`). It still needs testing 
 - [ ] Walk and follow, then tune `target_height`, `k_turn` and `k_forward`
 - [ ] Obstacle stop is still to do. The plan is to use `maix.nn.DepthAnything` (relative depth) on the NPU, or a detector trained on obstacles.
 
+## Interaction (gestures, faces, moods)
+
+Code is in (`--interact`, `odm_maix/behavior.py`, `odm_maix/expression.py`, `odm_maix/vision/gestures.py`). Tested off-board only:
+
+- [ ] `nn.HandLandmarks` and `nn.FaceRecognizer` load on the MaixCAM2 with the default `/root/models/` paths
+- [ ] `scripts/test_interact.py` shows the right pose for open palm, fist, point, peace and thumbs up, and the person detector stays above ~10 fps
+- [ ] Wave and stop gestures work at 1-2 m
+- [ ] Antenna directions, eye LEDs and sounds (`expression_features`)
+- [ ] Walk with `--interact`: stay/come, and head animations only while standing
+
 ## Step 3 status
 
 Training code is in `training/` (see [training/README.md](../training/README.md)).

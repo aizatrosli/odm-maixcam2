@@ -101,6 +101,42 @@ python3 scripts/walk.py --follow           # walk and follow
 
 Before walking, use `test_vision.py` to check three things. First, a person on the right of the image gives a negative `wz` (turn right). Second, `head_yaw` moves the head toward the person; if it doesn't, set `follow.head_yaw_sign` (and `head_pitch_sign`) to -1. Third, set `hfov_deg` to your lens. If the camera is mounted in the head, set `camera_on_head: true` so the head angle is taken into account. All tuning lives under `maixcam2.vision.follow` in `duck_config.json` (see `odm_maix/vision/follow.py`).
 
+## Gestures, faces and moods
+
+`--interact` is follow mode with manners. The same vision process also runs MaixPy's hand landmark model (every 2nd frame) and face recognizer (every 5th frame) on the NPU, and a behavior layer on top of the follow controller gives the duck moods it shows with its head, antennas, eye LEDs, sounds and the screen.
+
+| You do | The duck |
+|---|---|
+| Wave | Starts following you (it starts in "stay" and waits for this), happy |
+| Hold an open palm still for ~1 s | Stops and stays, still watching you |
+| Thumbs up or peace sign | Happy: nods, wiggles its antennas, quacks |
+| Walk up to it fast | Startled: head back, antennas up |
+| Someone new appears | Curious: head tilt, one antenna up |
+| An enrolled face appears | Greets that person (at most once a minute) |
+| Nobody around for 30 s | Dozes off: head droops, eyes half shut |
+
+Head animations only play while the duck is standing, because the stock policy never trained with the head moving (see step 3). Walking fades out and back in over half a second when you say stay or come. The gamepad still pauses with A and overrides with the sticks.
+
+```bash
+python3 scripts/enroll_face.py --name aizat   # optional: look at the camera for 5 s
+python3 scripts/test_interact.py              # motors off: prints poses, gestures, mood
+python3 scripts/walk.py --interact
+```
+
+Outputs are off until you turn them on in `expression_features`: `antennas` (servos on `A31`/`B2`), `eyes` (LEDs on `B3`/`A30`), `speaker` and `screen_eyes` (cartoon eyes on the MaixCAM2 screen, drawn by the vision process). Sounds are `.wav` files in `~/sounds/`, named after the mood: `happy`, `curious`, `startled`, `sleepy`, `hello`, `ok`; missing files are skipped. They play in a thread pinned to CPU core 1, away from the walk loop. Pins, servo directions and volume live under `maixcam2.expression`; gesture timing and moods under `maixcam2.vision.interact` (see `odm_maix/behavior.py` and `odm_maix/vision/gestures.py`).
+
+**With just the MaixCAM2** (no robot yet), everything except the legs, head and antennas works. `--board` needs no `duck_config.json`, sets no pins, and shows the eyes on the screen and plays sounds through the onboard speaker:
+
+```bash
+python3 scripts/make_sounds.py                # placeholder quacks in ~/sounds
+python3 scripts/enroll_face.py --name aizat   # optional
+python3 scripts/test_interact.py --board      # wave, palm, thumbs up, walk up close, leave for 30 s
+```
+
+The printed `vx`/`wz` and head values are what the duck would send to its motors.
+
+Three NPU models now share one camera frame, so check the detector frame rate in `test_interact.py`. If person tracking drops below ~10 fps, raise `hands_every` and `faces_every`, or set `"faces": false`.
+
 ## Better walking policy (step 3)
 
 `training/` retrains the walking policy in Open_Duck_Playground so that it matches follow mode, where the head moves while the duck walks. The stock policy never trained with that. See [training/README.md](training/README.md). A trained policy comes as `name.onnx` plus a `name.json` *policy profile*, which `walk.py` reads automatically. A policy without a profile runs exactly as before.
