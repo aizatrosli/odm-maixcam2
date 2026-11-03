@@ -5,3 +5,5 @@ out/
 *.npy
 *.tar
 *.axmodel
+work/
+.env

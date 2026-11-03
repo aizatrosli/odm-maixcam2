@@ -1,0 +1,14 @@
+# NVIDIA GPU for lab, sim and tensorboard (needs the NVIDIA Container Toolkit):
+#   docker compose -f compose.yaml -f compose.gpu.yaml up -d lab
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]   # NVIDIA_DRIVER_CAPABILITIES in the image adds graphics (EGL)
+
+services:
+  lab: *gpu
+  sim: *gpu

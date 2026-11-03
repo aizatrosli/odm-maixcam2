@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build a set of ViT encoders for the MaixCAM2 NPU so their latency can be timed on the board.
-# Runs on a PC (x86_64) with Docker and the Pulsar2 image loaded, same setup as
+# Runs on a PC (x86_64) with Docker and the Pulsar2 image loaded, or inside the compose
+# `pulsar2` service (docker/README.md), same setup as
 # tools/convert/convert_policy.sh
 # (see https://wiki.sipeed.com/maixpy/doc/en/ai_model_converter/maixcam2.html).
 #
@@ -15,6 +16,15 @@ set -euo pipefail
 IMAGE=${PULSAR2_IMAGE:-pulsar2:6.0}
 PRECISION=${PRECISION:-mixed}
 HERE=$(cd "$(dirname "$0")" && pwd)
+# PULSAR2_RUNNER=local runs pulsar2 directly (inside the compose `pulsar2` service);
+# otherwise each build is a `docker run` of $PULSAR2_IMAGE.
+pulsar2_build() {
+  if [ "${PULSAR2_RUNNER:-docker}" = local ]; then
+    (cd "$WORK" && pulsar2 build "$@")
+  else
+    docker run --rm -v "$WORK":/data -w /data "$IMAGE" pulsar2 build "$@"
+  fi
+}
 CONFIGS=("$@")
 if [ ${#CONFIGS[@]} -eq 0 ]; then
   CONFIGS=(tiny:160 small:160 small:224 base:160 large:160 large:224)
@@ -33,8 +43,7 @@ for cfg in "${CONFIGS[@]}"; do
   for mode in npu vnpu; do
     if [ $mode = npu ]; then npu_mode=NPU2; else npu_mode=NPU1; fi
     sed "s/\"NPU2\"/\"$npu_mode\"/" "$WORK/config.json" >"$WORK/config.$mode.json"
-    docker run --rm -v "$WORK":/data -w /data "$IMAGE" \
-      pulsar2 build --target_hardware AX620E \
+    pulsar2_build --target_hardware AX620E \
         --input model.onnx \
         --output_dir build_$mode \
         --config config.$mode.json

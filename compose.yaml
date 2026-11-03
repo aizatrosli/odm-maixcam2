@@ -1,0 +1,70 @@
+# Self-hosted camera simulator, notebooks and model conversion. See docker/README.md.
+#
+#   cp docker/.env.example .env      # set JUPYTER_TOKEN (and UID/GID if not 1000)
+#   docker compose up -d lab sim tensorboard          # notebooks :8888, interactive sim :8080 (+ gamepad page :8081)
+#   docker compose run --rm sim python -m odm_train.camsim.follow_sim /opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx --video /work/camsim/follow.mp4
+#   docker compose --profile convert run --rm pulsar2 /workspace/odm-maixcam2/tools/convert/convert_policy.sh /work/policy.onnx /work/obs.npy
+#
+# NVIDIA GPU: add -f compose.gpu.yaml to every command (or COMPOSE_FILE=compose.yaml:compose.gpu.yaml in .env).
+
+x-duck: &duck
+  image: odm-maixcam2/sim:latest
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+    args:
+      JAX: ${JAX:-jax[cuda12]==0.8.0}
+  user: "${UID:-1000}:${GID:-1000}"
+  volumes:
+    - .:/workspace/odm-maixcam2          # your checkout: notebook and code edits land here
+    - ${WORK_DIR:-./work}:/work           # runs, datasets, videos, caches
+  environment:
+    MUJOCO_GL: ${MUJOCO_GL:-}             # empty: EGL with an NVIDIA GPU, OSMesa otherwise
+  shm_size: 2gb
+
+services:
+  lab:
+    <<: *duck
+    command: ["bash", "/workspace/odm-maixcam2/docker/lab.sh"]
+    environment:
+      MUJOCO_GL: ${MUJOCO_GL:-}
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-}
+    ports:
+      - "${BIND:-127.0.0.1}:${LAB_PORT:-8888}:8888"
+    restart: unless-stopped
+
+  # Interactive simulator: 3D view, MaixCAM2 image, plots, sliders (8080) and the gamepad page (8081).
+  # One-off runs use the same service: docker compose run --rm sim python -m odm_train.camsim.follow_sim ...
+  sim:
+    <<: *duck
+    working_dir: /opt/Open_Duck_Playground
+    command:
+      - python
+      - -m
+      - odm_train.camsim.app
+      - ${SIM_POLICY:-/opt/Open_Duck_Mini/BEST_WALK_ONNX_2.onnx}
+      - --mount=${SIM_MOUNT:-head}
+    ports:
+      - "${BIND:-127.0.0.1}:${SIM_PORT:-8080}:8080"
+      - "${BIND:-127.0.0.1}:${PAD_PORT:-8081}:8081"
+    restart: unless-stopped
+
+  tensorboard:
+    <<: *duck
+    command: ["tensorboard", "--logdir=/work/runs", "--host=0.0.0.0", "--port=6006"]
+    ports:
+      - "${BIND:-127.0.0.1}:${TB_PORT:-6006}:6006"
+    restart: unless-stopped
+
+  # Pulsar2 (MaixCAM2 NPU converter). Load the image first, see docker/README.md.
+  pulsar2:
+    image: ${PULSAR2_IMAGE:-pulsar2:6.0}
+    profiles: [convert]
+    volumes:
+      - .:/workspace/odm-maixcam2
+      - ${WORK_DIR:-./work}:/work
+    working_dir: /work/convert
+    environment:
+      PULSAR2_RUNNER: local               # the scripts call pulsar2 directly instead of docker run
+    entrypoint: ["bash", "-c", "mkdir -p /work/convert && cd /work/convert && exec \"$$@\"", "--"]
+    command: ["pulsar2", "version"]
