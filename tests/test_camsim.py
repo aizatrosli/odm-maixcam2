@@ -186,3 +186,21 @@ def test_pad_server_roundtrip_and_taps():
         assert pad.pop_buttons() == {"a"} and pad.pop_buttons() == set()  # one tap, reported once
     finally:
         pad.stop()
+
+
+@pytest.mark.skipif(not (ODP and STOCK), reason="needs ODP_DIR and STOCK_ONNX (training stack)")
+@pytest.mark.parametrize("mount,parent", [("head", "head_assembly"), ("trunk", "trunk_assembly")])
+def test_camera_mass_is_added_to_the_mount(monkeypatch, mount, parent):
+    from odm_train.camsim import gl
+
+    gl.setup()
+    pytest.importorskip("mujoco")
+    monkeypatch.chdir(ODP)
+    monkeypatch.syspath_prepend(ODP)
+    from odm_train.camsim.scene import CameraConfig, SceneConfig, build_scene
+    from odm_train.sim_eval import XML
+
+    m0, _ = build_scene(XML, CameraConfig(mount=mount), SceneConfig())
+    m1, _ = build_scene(XML, CameraConfig(mount=mount, mass_g=120), SceneConfig())
+    assert abs(m1.body_subtreemass[1] - m0.body_subtreemass[1] - 0.12) < 1e-6
+    assert m1.body_parentid[m1.body("maixcam2_module").id] == m1.body(parent).id

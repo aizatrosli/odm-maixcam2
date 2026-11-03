@@ -45,6 +45,10 @@ class CameraConfig:
     exposure_jitter: float = 0.15  # +- fraction per episode
     wb_jitter: float = 0.06  # +- per colour channel per episode
     exposure_ms: float = 8.0  # motion blur length = camera turn rate x exposure (0 = off)
+    # The camera module's weight (board, lens, mount, cable), added as a box behind the lens on the
+    # mount body. The stock duck model has no camera. 0 = leave the model's masses as they are.
+    mass_g: float = 0.0
+    module_size: Tuple[float, float, float] = (0.03, 0.04, 0.04)  # depth, width, height (m)
 
     @property
     def vfov_deg(self) -> float:
@@ -126,6 +130,16 @@ def build_scene(xml_path: str, cam: CameraConfig, cfg: SceneConfig):
     p_body = R_wb.T @ (p_world - d0.xpos[bid])
     spec.visual.map.znear = 0.002  # relative to the scene extent: lets a person right in front of the lens render
     spec.body(body_name).add_camera(name=CAMERA, pos=p_body.tolist(), quat=q.tolist(), fovy=cam.vfov_deg)
+    if cam.mass_g > 0:
+        # the module sits just behind the lens, along the camera's optical axis
+        depth, width, height = cam.module_size
+        back = R_bc @ np.array([0.0, 0.0, depth / 2])  # camera +z points backwards
+        # its own welded body: the duck's bodies have explicit inertia, so a geom's mass on them would be ignored
+        module = spec.body(body_name).add_body(name="maixcam2_module", pos=(p_body + back).tolist(), quat=q.tolist())
+        module.add_geom(
+            name="maixcam2_module", type=mujoco.mjtGeom.mjGEOM_BOX, size=[width / 2, height / 2, depth / 2],
+            mass=cam.mass_g / 1000, contype=0, conaffinity=0, rgba=[0.12, 0.12, 0.13, 1],
+        )
 
     # --- floors: several textures to swap per episode
     floor_mats = []
