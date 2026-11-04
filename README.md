@@ -50,6 +50,17 @@ If you already have a `duck_config.json` from the Pi, reuse it and add the `maix
 
 ## Bring-up, in order
 
+Start with the diagnostics and calibration tools in [docs/BRINGUP.md](docs/BRINGUP.md). They check every servo, the IMU, the feet, the camera, NPU and audio and the 50 Hz loop without turning servo torque on, then calibrate joint offsets, joint ranges and the IMU. Both run on a PC against a simulated duck with `--dry-run`:
+
+```bash
+python3 scripts/diagnose.py                # config, board, servos, IMU, feet, camera, NPU, loop timing
+python3 scripts/diagnose.py -i             # plus guided steps: tilt the duck, press each foot, listen
+python3 scripts/calibrate.py offsets       # then ranges, imu, servo-id
+python3 scripts/diagnose.py --dry-run -i --fault missing:23,upside_down   # no robot needed
+```
+
+The single-purpose scripts are still there:
+
 ```bash
 python3 scripts/find_pins.py               # check the pins in docs/WIRING.md
 python3 scripts/check_motors.py            # all 14 servos answer, torque off
