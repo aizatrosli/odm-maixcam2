@@ -1,6 +1,6 @@
 # On-board test checklist
 
-These are the items that the docs and source code cannot settle. Everything else in the README was checked against Sipeed, Axera, Feetech, Bosch and Open_Duck_Mini sources (see "Verification status" in the [README](../README.md)). Run these over SSH on the MaixCAM2 (`ssh maixcam`), in order. Each one says what a pass looks like.
+These are the items that the docs and source code cannot settle. Everything else in the README was checked against Sipeed, Axera, Feetech, Bosch and Open_Duck_Mini sources (see "Verification status" in the [README](../README.md)). Run these over SSH on the MaixCAM2 (`ssh maixcam`), in order. Each one says what a pass looks like. `scripts/diagnose.py -i` runs most of the pin, bus, IMU, feet, NPU and audio items in one go; see [BRINGUP.md](BRINGUP.md).
 
 ## Board and OS
 

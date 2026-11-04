@@ -56,6 +56,11 @@ class HWI:
         self.kps = [32] * len(self.ids)
         self.kds = [0] * len(self.ids)
         self.low_torque_kps = [2] * len(self.ids)
+        # Optional soft limits from scripts/calibrate.py ranges: {joint: [min, max]} in
+        # radians, policy frame (before offsets). Targets are clamped to them.
+        limits = m.get("joint_limits") or {}
+        self.lower = np.array([limits.get(j, [-np.inf, np.inf])[0] for j in JOINT_NAMES], dtype=float)
+        self.upper = np.array([limits.get(j, [-np.inf, np.inf])[1] for j in JOINT_NAMES], dtype=float)
         self.io = bus or FeetechBus(m["servo_port"], m["servo_baudrate"])
 
     def set_kps(self, kps: Sequence[float]) -> None:
@@ -86,12 +91,14 @@ class HWI:
         for i, j in enumerate(JOINT_NAMES):
             if j in joints_positions:
                 ids.append(self.ids[i])
-                pos.append(joints_positions[j] + self.offsets[i])
+                p = min(max(joints_positions[j], self.lower[i]), self.upper[i])
+                pos.append(p + self.offsets[i])
         self.io.write_goal_position(ids, pos)
 
     def set_position_array(self, positions: np.ndarray) -> None:
         """Radians, one value per joint in JOINT_NAMES order."""
-        self.io.write_goal_position(self.ids, list(np.asarray(positions) + self.offsets))
+        p = np.clip(np.asarray(positions, dtype=float), self.lower, self.upper)
+        self.io.write_goal_position(self.ids, list(p + self.offsets))
 
     def get_present_positions_velocities(self):
         """(positions rad, velocities rad/s) in JOINT_NAMES order, or (None, None)."""

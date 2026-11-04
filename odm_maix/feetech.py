@@ -29,16 +29,42 @@ INST_SYNC_WRITE = 0x83
 
 BROADCAST_ID = 0xFE
 
-# STS3215 registers
+# STS3215 registers (EEPROM below 40, RAM from 40)
+REG_ID = 5
+REG_BAUD_RATE = 6  # 0 = 1 Mbps
+REG_RETURN_DELAY = 7  # x2 us
+REG_MIN_ANGLE_LIMIT = 9
+REG_MAX_ANGLE_LIMIT = 11
+REG_MAX_TEMPERATURE = 13
+REG_MAX_VOLTAGE = 14
+REG_MIN_VOLTAGE = 15
+REG_MAX_TORQUE = 16
 REG_P_COEFF = 21
 REG_D_COEFF = 22
 REG_I_COEFF = 23
+REG_HOMING_OFFSET = 31
+REG_MODE = 33  # 0 = position servo
 REG_TORQUE_ENABLE = 40
 REG_GOAL_POSITION = 42
+REG_TORQUE_LIMIT = 48
+REG_LOCK = 55  # 0 = EEPROM writable, 1 = locked
 REG_PRESENT_POSITION = 56
 REG_PRESENT_VELOCITY = 58
 REG_PRESENT_VOLTAGE = 62
 REG_PRESENT_TEMPERATURE = 63
+
+# Error bits in a status packet
+STATUS_ERRORS = {
+    0x01: "voltage",
+    0x02: "angle sensor",
+    0x04: "overheat",
+    0x08: "overcurrent",
+    0x20: "overload",
+}
+
+
+def describe_status_error(error: int) -> str:
+    return ", ".join(name for bit, name in STATUS_ERRORS.items() if error & bit) or ("0x%02x" % error if error else "")
 
 
 class FeetechError(IOError):
@@ -115,10 +141,13 @@ def parse_status(buf: bytes, offset: int = 0):
 class FeetechBus:
     """Feetech STS bus on a serial port (USB adapter or a MaixCAM2 UART)."""
 
-    def __init__(self, port: str, baudrate: int = 1_000_000, timeout: float = 0.02):
-        import serial  # pyserial; imported lazily so tests run without it
+    def __init__(self, port: str, baudrate: int = 1_000_000, timeout: float = 0.02, ser=None):
+        """``ser``: an already open serial-like object (used by the dry-run simulator)."""
+        if ser is None:
+            import serial  # pyserial; imported lazily so tests run without it
 
-        self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
+            ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
+        self.ser = ser
 
     # low level -------------------------------------------------------------
 
@@ -137,9 +166,32 @@ class FeetechBus:
         self._txrx(build_packet(servo_id, INST_WRITE, [address, *data]), 6)
 
     def read(self, servo_id: int, address: int, length: int) -> bytes:
+        return self.read_with_status(servo_id, address, length)[1]
+
+    def read_with_status(self, servo_id: int, address: int, length: int):
+        """(status error byte, data). The error byte flags overload, overheat, etc."""
         resp = self._txrx(build_packet(servo_id, INST_READ, [address, length]), 6 + length)
-        _, _, params, _ = parse_status(resp)
-        return params
+        _, error, params, _ = parse_status(resp)
+        return error, params
+
+    def read_u8(self, servo_id: int, address: int) -> int:
+        return self.read(servo_id, address, 1)[0]
+
+    def read_u16(self, servo_id: int, address: int) -> int:
+        return struct.unpack("<H", self.read(servo_id, address, 2))[0]
+
+    def write_eeprom(self, servo_id: int, address: int, data: Sequence[int]) -> None:
+        """Write a persistent setting: unlock, write, lock again."""
+        self.write(servo_id, REG_LOCK, [0])
+        try:
+            self.write(servo_id, address, data)
+        finally:
+            # after an ID change the servo answers on the new ID
+            new_id = data[0] if address == REG_ID else servo_id
+            self.write(new_id, REG_LOCK, [1])
+
+    def scan(self, ids: Iterable[int] = range(0, 254)) -> List[int]:
+        return [i for i in ids if self.ping(i)]
 
     def ping(self, servo_id: int) -> bool:
         try:
@@ -201,6 +253,13 @@ class FeetechBus:
 
     def read_voltage(self, servo_id: int) -> float:
         return self.read(servo_id, REG_PRESENT_VOLTAGE, 1)[0] / 10.0
+
+    def read_temperature(self, servo_id: int) -> int:
+        return self.read(servo_id, REG_PRESENT_TEMPERATURE, 1)[0]
+
+    def read_raw_position(self, ids: Sequence[int]) -> List[int]:
+        """Encoder counts 0..4095, no unit conversion."""
+        return [struct.unpack("<H", r)[0] & 0x7FFF for r in self.sync_read(REG_PRESENT_POSITION, 2, ids)]
 
     def close(self) -> None:
         self.ser.close()
