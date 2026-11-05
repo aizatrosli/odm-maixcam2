@@ -15,17 +15,20 @@ from . import bno055
 
 
 class Imu:
-    def __init__(self, config, sampling_freq: int = 50, calibrate: bool = False):
+    def __init__(self, config, sampling_freq: int = 50, calibrate: bool = False, dev=None):
+        """``dev``: an open bno055.BNO055 (skips the bus scan)."""
         m = config.maixcam2
         bus, addr = m["imu_i2c_bus"], m["imu_address"]
-        if bus is None:
+        if dev is not None:
+            self.dev = dev
+        elif bus is None:
             found = bno055.scan_for_bno055()
             if found is None:
                 raise IOError("No BNO055 found on /dev/i2c-0..7. Check wiring and the 'pinmap' config.")
             bus, addr = found
             print(f"[IMU] BNO055 found on i2c-{bus} @0x{addr:02x}")
-
-        self.dev = bno055.BNO055(bus, addr)
+        if dev is None:
+            self.dev = bno055.BNO055(bus, addr)
         self.dev.set_axis_remap(bno055.REMAP_UPSIDE_DOWN if config.imu_upside_down else bno055.REMAP_UPRIGHT)
         self.sampling_freq = sampling_freq
         self.offsets_path = m["imu_offsets_path"]

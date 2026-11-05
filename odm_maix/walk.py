@@ -97,6 +97,13 @@ class RLWalk:
         self.loop_times = []
         self.infer_times = []
         self.overruns = 0
+        self.read_failures = 0
+
+        # on-screen dashboard feed (odm_maix/telemetry.py), set by scripts/walk.py
+        self.telemetry = None
+        self.backend = ""
+        self.last_dof_pos = None
+        self.last_dof_vel = None
 
     def start(self):
         kps = [self.pid[0]] * NUM_DOFS
@@ -125,7 +132,9 @@ class RLWalk:
         imu = self.imu.get_data()
         dof_pos, dof_vel = self.hwi.get_present_positions_velocities()
         if dof_pos is None or len(dof_pos) != NUM_DOFS:
+            self.read_failures += 1
             return None
+        self.last_dof_pos, self.last_dof_vel = dof_pos, dof_vel
         return build_obs(
             imu["gyro"],
             imu["accelero"],
@@ -195,12 +204,14 @@ class RLWalk:
                 t = time.monotonic()
                 if self.paused:
                     self.step(t_start)
+                    self._publish()
                     time.sleep(0.1)
                     next_t = time.monotonic()
                     continue
                 self.step(t_start)
                 took = time.monotonic() - t
                 self.loop_times.append(took)
+                self._publish()
                 next_t += period
                 delay = next_t - time.monotonic()
                 if delay > 0:
@@ -216,6 +227,15 @@ class RLWalk:
         finally:
             self.shutdown()
 
+    def _publish(self):
+        if self.telemetry is None:
+            return
+        try:
+            self.telemetry.update(self)
+        except Exception as e:  # the dashboard must never stop the robot
+            print("[telemetry]", e)
+            self.telemetry = None
+
     def report(self):
         if not self.loop_times:
             return
@@ -229,6 +249,8 @@ class RLWalk:
     def shutdown(self):
         print("Stopping")
         self.report()
+        if self.telemetry is not None:
+            self.telemetry.close()
         for part in (self.commands, self.feet_contacts, self.imu):
             try:
                 part.stop()

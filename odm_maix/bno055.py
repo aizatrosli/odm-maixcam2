@@ -24,6 +24,9 @@ REG_PAGE_ID = 0x07  # same address on both register pages
 REG_ACC_DATA = 0x08
 REG_GYR_DATA = 0x14
 REG_CALIB_STAT = 0x35
+REG_ST_RESULT = 0x36  # power-on self test: bit0 acc, bit1 mag, bit2 gyro, bit3 MCU (1 = pass)
+REG_SYS_STATUS = 0x39
+REG_SYS_ERR = 0x3A
 REG_UNIT_SEL = 0x3B
 REG_OPR_MODE = 0x3D
 REG_PWR_MODE = 0x3E
@@ -59,10 +62,14 @@ REMAP_UPSIDE_DOWN = (AXIS_Y, AXIS_X, AXIS_Z, NEGATIVE, NEGATIVE, NEGATIVE)
 
 
 class BNO055:
-    def __init__(self, bus: int, address: int = ADDRESS_A):
-        from smbus2 import SMBus
+    def __init__(self, bus: int, address: int = ADDRESS_A, smbus=None):
+        """``smbus``: an open SMBus-like object (used by the dry-run simulator)."""
+        if smbus is None:
+            from smbus2 import SMBus
 
-        self.bus = SMBus(bus)
+            smbus = SMBus(bus)
+        self.bus = smbus
+        self.bus_number = bus
         self.address = address
         self._select_page0()
         chip = self._read_u8(REG_CHIP_ID)
@@ -121,6 +128,15 @@ class BNO055:
     def calibration_status(self) -> Dict[str, int]:
         s = self._read_u8(REG_CALIB_STAT)
         return {"sys": (s >> 6) & 3, "gyro": (s >> 4) & 3, "accel": (s >> 2) & 3, "mag": s & 3}
+
+    def self_test(self) -> Dict[str, bool]:
+        """Result of the power-on self test (True = passed)."""
+        r = self._read_u8(REG_ST_RESULT)
+        return {"accel": bool(r & 1), "mag": bool(r & 2), "gyro": bool(r & 4), "mcu": bool(r & 8)}
+
+    def system_status(self):
+        """(SYS_STATUS, SYS_ERR). Status 5 = fusion running, 6 = running without fusion, 1 = error."""
+        return self._read_u8(REG_SYS_STATUS), self._read_u8(REG_SYS_ERR)
 
     def read_offsets(self) -> List[int]:
         current = self.mode

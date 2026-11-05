@@ -1,0 +1,69 @@
+# Builds apps/duck_dash for the MaixCAM2 with MaixCDK and uploads the app
+# package (install with app_store) and the binary as a workflow artifact.
+name: duck_dash (MaixCAM2)
+
+on:
+  push:
+    paths:
+      - "apps/duck_dash/**"
+      - ".github/workflows/duck_dash.yml"
+  pull_request:
+    paths:
+      - "apps/duck_dash/**"
+      - ".github/workflows/duck_dash.yml"
+  workflow_dispatch:
+    inputs:
+      maixcdk_ref:
+        description: "MaixCDK commit or tag"
+        required: false
+        default: "b7f57665309084082f56a1e79a9d9c114eedd4dc"
+
+env:
+  # the MaixCDK commit duck_dash's shim was type-checked against
+  MAIXCDK_REF: ${{ github.event.inputs.maixcdk_ref || 'b7f57665309084082f56a1e79a9d9c114eedd4dc' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch MaixCDK
+        run: |
+          git clone --filter=blob:none https://github.com/sipeed/MaixCDK "$HOME/MaixCDK"
+          git -C "$HOME/MaixCDK" checkout "$MAIXCDK_REF"
+          pip install -U -r "$HOME/MaixCDK/requirements.txt"
+
+      - name: Cache MaixCDK downloads (toolchain, SDK, prebuilt libs)
+        uses: actions/cache@v4
+        with:
+          path: ~/MaixCDK/dl
+          key: maixcdk-dl-${{ env.MAIXCDK_REF }}
+
+      - name: C unit tests (host)
+        run: make -C apps/duck_dash test
+
+      - name: Build for maixcam2
+        working-directory: apps/duck_dash
+        env:
+          MAIXCDK_PATH: /home/runner/MaixCDK
+        run: |
+          maixcdk build -p maixcam2
+          maixcdk release -p maixcam2
+          ls -la dist build | head -50
+
+      - name: Collect
+        run: |
+          mkdir -p out
+          cp -r apps/duck_dash/dist/. out/
+          file apps/duck_dash/build/duck_dash || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duck_dash-maixcam2
+          path: out/
+          if-no-files-found: error
