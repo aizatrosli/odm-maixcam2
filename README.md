@@ -73,6 +73,12 @@ python3 scripts/walk.py --save_obs obs.npy # walk around a bit with the gamepad,
 
 `walk.py` prints the loop time, policy time and overruns every 5 seconds. The loop has 20 ms per step at 50 Hz.
 
+## Telemetry on the screen
+
+`apps/duck_dash` is a native C app for the MaixCAM2's screen that shows whether each part is connected and what it reads: the 14 servos (position, temperature, voltage, status bits), the battery, the BNO055, the foot switches, a camera preview, the walking policy loaded on the NPU, the gamepad, WiFi and the board. While `walk.py` runs, it switches to a feed the walk loop publishes (loop timing, mode, commands) instead of touching the hardware. Build it with MaixCDK; see [apps/duck_dash/README.md](apps/duck_dash/README.md).
+
+![duck_dash overview](apps/duck_dash/docs/overview.png)
+
 ## Running the policy on the NPU
 
 On a PC with Docker and the Pulsar2 image ([Sipeed guide](https://wiki.sipeed.com/maixpy/doc/en/ai_model_converter/maixcam2.html)):

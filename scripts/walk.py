@@ -18,6 +18,7 @@ from odm_maix.imu import Imu
 from odm_maix.policy import load_policy
 from odm_maix.policy_profile import load_profile, obs_size
 from odm_maix.rl_utils import nb_steps_from_config
+from odm_maix.telemetry import TelemetryWriter
 from odm_maix.walk import RLWalk
 
 
@@ -41,6 +42,7 @@ def main():
     )
     p.add_argument("--no_feet", action="store_true", help="foot switches not wired: report both feet down")
     p.add_argument("--save_obs", default=None, help="save observations to this .npy file")
+    p.add_argument("--no_telemetry", action="store_true", help="don't publish the feed for the screen dashboard")
     args = p.parse_args()
 
     config = load_config(args.duck_config_path)
@@ -52,6 +54,12 @@ def main():
     policy = load_policy(backend, policy_path, obs_size=obs_size(profile))
     if getattr(policy, "obs_size", obs_size(profile)) != obs_size(profile):
         raise SystemExit(f"policy expects {policy.obs_size} inputs but its profile describes {obs_size(profile)}")
+
+    mode = "interact" if args.interact else "follow" if args.follow else "walk"
+    vision_on_screen = (args.interact or args.follow) and (config.feature("screen_eyes") or m["vision"].get("show"))
+    telemetry = None if args.no_telemetry else TelemetryWriter(mode=mode, screen=bool(vision_on_screen))
+    if telemetry is not None:
+        telemetry.announce()  # a running dashboard releases the camera and the hardware
 
     gamepad = None
     if not args.no_gamepad:
@@ -86,6 +94,8 @@ def main():
         save_obs_path=args.save_obs,
         profile=profile,
     )
+    walker.telemetry = telemetry
+    walker.backend = backend
     walker.start()
     walker.imu = Imu(config, sampling_freq=args.control_freq)
     walker.feet_contacts = NoFeetContacts() if args.no_feet else FeetContacts(config)

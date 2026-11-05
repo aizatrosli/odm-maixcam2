@@ -1,0 +1,7 @@
+build/
+build-aarch64/
+dist/
+.config.mk
+.flash.conf.json
+/CMakeLists.txt
+__pycache__
