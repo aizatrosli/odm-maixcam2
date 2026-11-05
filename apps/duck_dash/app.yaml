@@ -1,0 +1,7 @@
+id: duck_dash
+name: Duck Telemetry
+version: 1.0.0
+author: odm-maixcam2
+desc: Live telemetry for Open Duck Mini (servos, battery, IMU, feet, camera, NPU)
+files:
+  app.yaml: app.yaml

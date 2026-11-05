@@ -1,0 +1,21 @@
+# duck_dash on the MaixCAM2 screen at boot. Edit ExecStart to where you copied
+# the app, then: cp duck_dash.service /etc/systemd/system/ && systemctl enable --now duck_dash
+# The Sipeed launcher also draws on the screen: turn it off with
+# tools/system/setup_board.sh apply --autostart (or stop launcher.service).
+[Unit]
+Description=Open Duck Mini telemetry dashboard (MaixCAM2 screen)
+After=multi-user.target
+
+[Service]
+Type=simple
+Environment=HOME=/root
+ExecStart=/root/duck_dash/duck_dash_release/duck_dash
+# Lowest priority: the 50 Hz walk loop always comes first.
+Nice=15
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

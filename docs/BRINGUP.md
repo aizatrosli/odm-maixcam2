@@ -29,6 +29,8 @@ Put the duck on a stand with its feet off the ground, battery charged, and SSH i
 | 7 | `python3 scripts/calibrate.py -i imu` | BNO055 calibration saved to `imu_offsets_path`, then gravity, gyro bias and the tilt/turn axis signs |
 | 8 | `python3 scripts/diagnose.py -i` | Everything again, with the guided steps: init pose, tilt and turn, press each foot, hear the speaker, watch the antennas and eye LEDs |
 
+Between steps, `apps/duck_dash` on the MaixCAM2 screen shows the same parts live (servos answering, battery, IMU tilt, feet, camera, NPU policy) without a laptop: plug a servo in and its row turns green. It only reads, so it is safe to leave running on the stand. See [apps/duck_dash/README.md](../apps/duck_dash/README.md).
+
 Exit code is 0 when everything passed, 1 with warnings, 2 with failures, and every number goes to `diag_report.json` so two runs can be compared (for example before and after the thermal soak).
 
 ## What each check looks at
