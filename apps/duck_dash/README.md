@@ -48,6 +48,8 @@ Everything that runs every frame is C99: the Feetech, BNO055 and GPIO drivers (`
 
 ## Build and install (MaixCDK)
 
+Every push that touches `apps/duck_dash` is built for the MaixCAM2 by GitHub Actions (`.github/workflows/duck_dash.yml`). Download the `duck_dash-maixcam2` artifact from the run to skip the local build: it holds `duck_dash_v1.0.0.zip` (the launcher app package) and `duck_dash_release/` (the binary and the libraries it ships). To build it yourself:
+
 On a Linux PC:
 
 ```bash
