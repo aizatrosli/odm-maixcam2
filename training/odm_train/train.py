@@ -87,10 +87,17 @@ def build_runner(args):
                 os.makedirs(args.jax_cache, exist_ok=True)
                 jax.config.update("jax_compilation_cache_dir", args.jax_cache)
             self.env_config, self.env, self.eval_env = make_env(args.flavor, env_name, task)
+            camera = None
+            if args.camera_mass_g:
+                assert randomization == "strong", "--camera_mass_g needs --randomization strong"
+                from odm_train.randomize import camera_module
+
+                lo, hi = (float(v) for v in (args.camera_mass_g.split(",") * 2)[:2])
+                camera = camera_module(self.env.mj_model, args.camera_mount, (lo, hi))
             if randomization == "strong":
                 from odm_train.randomize import domain_randomize_strong
 
-                self.randomizer = domain_randomize_strong
+                self.randomizer = functools.partial(domain_randomize_strong, camera=camera)
             elif randomization == "stock":
                 from playground.common import randomize
 
@@ -100,6 +107,10 @@ def build_runner(args):
             self.action_size = self.env.action_size
             self.obs_size = int(self.env.observation_size["state"][0])
             self.profile = dict(PROFILES[env_name], flavor=args.flavor, task=task)
+            if camera is not None:
+                self.profile["camera_mount"] = camera["mount"]
+                self.profile["camera_mass_g"] = [1000 * camera["mass_kg"][0], 1000 * camera["mass_kg"][1]]
+                print(f"Camera module on the {camera['mount']}: {self.profile['camera_mass_g']} g")
             self.done_before = 0
             self.restore_checkpoint_path = args.restore_checkpoint_path
             if args.resume and not self.restore_checkpoint_path:
@@ -170,6 +181,9 @@ def main(argv=None):
     p.add_argument("--env", choices=["follow", "joystick", "standing"], default=None)
     p.add_argument("--task", default=None, help="flat_terrain, flat_terrain_backlash or rough_terrain_backlash")
     p.add_argument("--randomization", choices=["strong", "stock", "none"], default=None)
+    p.add_argument("--camera_mass_g", default=None,
+                   help="add the camera module's weight, random per env: 'LO,HI' or one value in grams (needs strong randomization)")
+    p.add_argument("--camera_mount", choices=["head", "trunk"], default="head", help="where the camera module sits")
     args = p.parse_args(argv)
     if args.list_flavors:
         for name, f in FLAVORS.items():

@@ -81,6 +81,19 @@ tensorboard --logdir runs
 
 Expect a few hours on one recent GPU for 300M steps. Each checkpoint writes `<date>_<step>.onnx` and `.json`, and `progress.json` records the step count and newest ONNX.
 
+### With the camera's weight
+
+The duck model has no camera. With the MaixCAM2 on the head, add its weight so the policy learns to carry it:
+
+```bash
+python -m odm_train.train --flavor follow_flat_backlash --camera_mass_g 60,200 --output_dir runs/follow_cam
+python -m odm_train.sim_eval runs/follow_cam/<newest>.onnx BEST_WALK_ONNX_2.onnx -n 40 --camera_mass_g 60,200
+```
+
+Each training env draws a module weight from the range (grams) and adds it at the lens position the camera simulator uses, 7.5 cm in front of the head's centre (`--camera_mount trunk` for the body mount). Weigh your module with its mount and cable and centre the range on it; a range rather than one value covers the cable and screws you didn't weigh. It needs the strong randomization (all `follow_*` flavors). The notebook's `CAMERA_MASS_G` setting does the same and is on by default. The policy profile records the mount and range, and `sim_eval --camera_mass_g` evaluates with the same weight.
+
+Stock policy in `sim_eval` (4 episodes of 10 s): no falls at 60–200 g on the head, 4 of 4 fall at 400 g. See [CAMSIM.md](CAMSIM.md#camera-weight---camera_mass_g) for the follow-mode sweep.
+
 ## Evaluate before it touches the robot
 
 ```bash
