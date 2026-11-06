@@ -79,9 +79,17 @@ class CommandProcess:
 
 
 class Sim(MJInferBase):
-    def __init__(self, xml=XML):
+    def __init__(self, xml=XML, camera_mass_g=None, camera_mount="head"):
         super().__init__(xml)
         self._cache_model()
+        # optional camera module weight, drawn per episode from (lo, hi) grams, as in training
+        self.camera = None
+        if camera_mass_g:
+            from odm_train.randomize import camera_module
+
+            self.camera = camera_module(self.model, camera_mount, camera_mass_g)
+            b = self.camera["body"]
+            self.camera_base = (self.model.body_mass[b], self.model.body_ipos[b].copy(), self.model.body_inertia[b].copy())
 
     def _cache_model(self):
         """Ids and nominal values that randomize() starts from (call again after swapping self.model)."""
@@ -97,6 +105,15 @@ class Sim(MJInferBase):
         self.model.actuator_gainprm[:, 0] = self.base_kp * f
         self.model.actuator_biasprm[:, 1] = -self.base_kp * f
         self.model.body_mass[self.torso] = self.base_torso_mass + rng.uniform(-0.15, 0.25)
+        if self.camera is not None:
+            from odm_train.randomize import add_point_mass
+
+            b, (mass, ipos, inertia) = self.camera["body"], self.camera_base
+            M, c, inertia = add_point_mass(
+                mass, ipos, inertia, self.model.body_iquat[b], rng.uniform(*self.camera["mass_kg"]), np.array(self.camera["pos"])
+            )
+            self.model.body_mass[b], self.model.body_ipos[b], self.model.body_inertia[b] = float(M), np.asarray(c), np.asarray(inertia)
+            mujoco.mj_setConst(self.model, self.data)  # refresh cached subtree masses
 
     def reset(self):
         mujoco.mj_resetDataKeyframe(self.model, self.data, self.model.keyframe("home").id)
@@ -198,13 +215,13 @@ def run_episode(sim, policy, profile, prm_steps, rng, seconds, head, mode, laten
     return True, seconds, err_vx, err_wz
 
 
-def evaluate(path, n, seconds, head, mode, latency, seed, record=None):
+def evaluate(path, n, seconds, head, mode, latency, seed, record=None, camera_mass_g=None, camera_mount="head"):
     profile = load_profile(path)
     opts = onnxruntime.SessionOptions()
     opts.intra_op_num_threads = 1
     policy = onnxruntime.InferenceSession(path, opts, providers=["CPUExecutionProvider"])
     prm = PolyReferenceMotion(PRM_PATH)
-    sim = Sim()
+    sim = Sim(camera_mass_g=camera_mass_g, camera_mount=camera_mount)
     rng = np.random.default_rng(seed)
     falls, alive, evx, ewz = 0, [], [], []
     for _ in range(n):
@@ -234,10 +251,13 @@ def main():
     p.add_argument("--latency", type=int, default=2, help="max action delay in control steps")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--save_obs", default=None, help="save every observation to this .npy (NPU calibration data)")
+    p.add_argument("--camera_mass_g", default=None, help="camera module weight per episode: 'LO,HI' or one value, grams")
+    p.add_argument("--camera_mount", choices=["head", "trunk"], default="head")
     args = p.parse_args()
+    cam_g = tuple(float(v) for v in (args.camera_mass_g.split(",") * 2)[:2]) if args.camera_mass_g else None
     record = [] if args.save_obs else None
     for path in args.policies:
-        r = evaluate(path, args.n, args.seconds, not args.no_head, args.mode, args.latency, args.seed, record)
+        r = evaluate(path, args.n, args.seconds, not args.no_head, args.mode, args.latency, args.seed, record, cam_g, args.camera_mount)
         print(json.dumps(r))
     if record:
         np.save(args.save_obs, np.stack(record))

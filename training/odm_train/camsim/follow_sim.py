@@ -324,7 +324,8 @@ class VideoWriter:
 
 def run(args):
     cam = CameraConfig(
-        mount=args.mount, width=args.width, height=args.height, hfov_deg=args.hfov, hz=args.hz, latency_ms=args.latency_ms
+        mount=args.mount, width=args.width, height=args.height, hfov_deg=args.hfov, hz=args.hz, latency_ms=args.latency_ms,
+        mass_g=args.camera_mass_g,
     )
     scene = SceneConfig(distractor=not args.no_distractor, seed=args.seed)
     encoder = None
@@ -406,6 +407,7 @@ def main(argv=None):
     p.add_argument("--width", type=int, default=320)
     p.add_argument("--height", type=int, default=240)
     p.add_argument("--hfov", type=float, default=70.0)
+    p.add_argument("--camera_mass_g", type=float, default=0.0, help="weight of the camera module on its mount (g)")
     p.add_argument("--hz", type=float, default=15.0, help="camera/detection rate")
     p.add_argument("--latency_ms", type=float, default=66.0, help="capture to detection delay")
     p.add_argument("--latency", type=int, default=2, help="max policy action delay, control steps")

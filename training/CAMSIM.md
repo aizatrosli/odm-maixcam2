@@ -39,7 +39,7 @@ Rendering uses `MUJOCO_GL=egl` when an NVIDIA device is visible and OSMesa (CPU)
 
 | Part | Model | Default |
 |---|---|---|
-| Mount | `maixcam2` camera on `head_assembly` (moves with head yaw/pitch) or `trunk_assembly` | head, lens 7.5 cm ahead of the head centre |
+| Mount | `maixcam2` camera on `head_assembly` (moves with head yaw/pitch) or `trunk_assembly`; optional module weight (`--camera_mass_g`) | head, lens 7.5 cm ahead of the head centre, no added weight |
 | Lens | Pinhole set by the horizontal FOV, plus radial distortion `k1`, `k2`. Rendered wider and resampled | 70 deg, 320x240, k1 = -0.08 |
 | Sensor | Exposure and white-balance offsets per episode, Gaussian noise, row blur from the camera's turn rate x exposure | ±15 %, ±6 %, σ 2.5, 8 ms |
 | Timing | Frames every `1/hz`, delivered `latency_ms` later on the 50 Hz clock | 15 Hz, 66 ms |
@@ -101,6 +101,32 @@ python -m odm_train.camsim.encoders time --encoder vjepa2_1_base --res 160
 ```
 
 `--encoder onnx:vjepa_b160_emb16.onnx` then runs the exported graph (projection included, so leave out `--projection`). The stand-in takes about 28 ms per frame on a laptop CPU at 160 px. The V-JEPA and DINOv2 paths load code from `torch.hub`; they weren't run in this repo's CI, so check the first export's printed `max |torch - onnxruntime|` before converting.
+
+## Camera weight (`--camera_mass_g`)
+
+The stock duck model has no camera, so by default the sim adds none of its weight. `CameraConfig.mass_g` (CLI `--camera_mass_g`, in grams) adds the camera module as its own small body, welded just behind the lens on the mount (head or trunk). Weigh your module with its mount and cable and pass that number.
+
+```bash
+python -m odm_train.camsim.follow_sim policy.onnx --camera_mass_g 120 --episodes 8 --no_render
+```
+
+Stock policy, 8 episodes of 15 s per row (same seeds), servo limit 3.23 N·m:
+
+| Mount | Added | Duck total | Falls | Head-pitch torque, mean / p99 (N·m) | Head-yaw p99 (N·m) |
+|---|---|---|---|---|---|
+| head | 0 g | 2.11 kg | 0/8 | 0.48 / 2.13 | 2.88 |
+| head | 60 g | 2.17 kg | 0/8 | 0.72 / 2.49 | 2.95 |
+| head | 120 g | 2.23 kg | 0/8 | 0.58 / 2.21 | 2.78 |
+| head | 250 g | 2.36 kg | 0/8 | 0.54 / 2.22 | 2.70 |
+| head | 400 g | 2.51 kg | 5/8 | 0.66 / 2.82 | 3.23 (at the limit) |
+| trunk | 120 g | 2.23 kg | 0/8 | 0.21 / 1.08 | 1.56 |
+| trunk | 250 g | 2.36 kg | 2/8 | 0.22 / 1.30 | 2.63 |
+| trunk | 400 g | 2.51 kg | 8/8 | 0.43 / 2.93 | 3.23 |
+
+- Holding a module still costs little: 120 g at about 6 cm in front of the head-pitch axis is 0.12 × 9.81 × 0.06 ≈ 0.07 N·m, 2 % of the servo's limit. Most of the head torque comes from tracking the person (head yaw is near the limit even without a camera), not from the weight.
+- Up to about 250 g on the head the stock policy didn't fall. On the trunk, 250 g already caused falls, because the trunk mount is 10 cm ahead of the trunk and moves the duck's centre of mass forward more than the head mount does.
+- Training only randomizes the trunk mass (`torso_mass_add` in `randomize.py`). If your module is heavy, retrain with it in the model.
+- 8 episodes is a small sample: rerun with more for a decision.
 
 ## Findings so far
 

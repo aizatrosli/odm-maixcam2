@@ -45,6 +45,10 @@ class CameraConfig:
     exposure_jitter: float = 0.15  # +- fraction per episode
     wb_jitter: float = 0.06  # +- per colour channel per episode
     exposure_ms: float = 8.0  # motion blur length = camera turn rate x exposure (0 = off)
+    # The camera module's weight (board, lens, mount, cable), added as a box behind the lens on the
+    # mount body. The stock duck model has no camera. 0 = leave the model's masses as they are.
+    mass_g: float = 0.0
+    module_size: Tuple[float, float, float] = (0.03, 0.04, 0.04)  # depth, width, height (m)
 
     @property
     def vfov_deg(self) -> float:
@@ -106,26 +110,54 @@ def _add_person(spec: mujoco.MjSpec, name: str, pos) -> None:
     b.add_geom(name=f"{name}_head", type=sph, pos=[0, 0, 1.6], size=[0.11, 0, 0], **vis)
 
 
-def build_scene(xml_path: str, cam: CameraConfig, cfg: SceneConfig):
-    """Return (model, SceneInfo) for the duck scene at ``xml_path`` plus camera, people and room."""
-    spec = mujoco.MjSpec.from_file(xml_path)
-    m0, d0 = _home_state(spec)
-    rng = np.random.default_rng(cfg.seed)
+MOUNT_BODY = {"head": "head_assembly", "trunk": "trunk_assembly"}
 
-    # --- camera, rigidly attached to the head or the trunk
-    body_name = {"head": "head_assembly", "trunk": "trunk_assembly"}[cam.mount]
-    bid = m0.body(body_name).id
-    R_wb = d0.xmat[bid].reshape(3, 3)
+
+def camera_mount(model: mujoco.MjModel, cam: CameraConfig):
+    """Where the camera sits on its mount body: (body id, lens position and camera orientation in that body's frame).
+
+    ``cam.head_pos`` / ``cam.trunk_pos`` are world positions in the "home" pose; the camera looks along
+    world +x there, tilted by ``cam.pitch_deg``. Also used by the trainer (randomize.py) to add the
+    module's weight at the same place."""
+    d = mujoco.MjData(model)
+    mujoco.mj_resetDataKeyframe(model, d, model.keyframe("home").id)
+    mujoco.mj_forward(model, d)
+    bid = model.body(MOUNT_BODY[cam.mount]).id
+    R_wb = d.xmat[bid].reshape(3, 3)
     tilt = math.radians(cam.pitch_deg)
     # tilt down = rotate the camera about its own x axis
     R_tilt = np.array([[1, 0, 0], [0, math.cos(tilt), math.sin(tilt)], [0, -math.sin(tilt), math.cos(tilt)]])
     R_bc = R_wb.T @ _R_WORLD_CAM_FORWARD @ R_tilt.T
+    p_world = np.array(cam.head_pos if cam.mount == "head" else cam.trunk_pos)
+    return bid, R_wb.T @ (p_world - d.xpos[bid]), R_bc
+
+
+def module_center(cam: CameraConfig, p_body: np.ndarray, R_bc: np.ndarray) -> np.ndarray:
+    """Centre of the camera module (mount body frame): just behind the lens, along the optical axis."""
+    return p_body + R_bc @ np.array([0.0, 0.0, cam.module_size[0] / 2])  # camera +z points backwards
+
+
+def build_scene(xml_path: str, cam: CameraConfig, cfg: SceneConfig):
+    """Return (model, SceneInfo) for the duck scene at ``xml_path`` plus camera, people and room."""
+    spec = mujoco.MjSpec.from_file(xml_path)
+    m0, _ = _home_state(spec)
+    rng = np.random.default_rng(cfg.seed)
+
+    # --- camera, rigidly attached to the head or the trunk
+    body_name = MOUNT_BODY[cam.mount]
+    _, p_body, R_bc = camera_mount(m0, cam)
     q = np.zeros(4)
     mujoco.mju_mat2Quat(q, R_bc.flatten())
-    p_world = np.array(cam.head_pos if cam.mount == "head" else cam.trunk_pos)
-    p_body = R_wb.T @ (p_world - d0.xpos[bid])
     spec.visual.map.znear = 0.002  # relative to the scene extent: lets a person right in front of the lens render
     spec.body(body_name).add_camera(name=CAMERA, pos=p_body.tolist(), quat=q.tolist(), fovy=cam.vfov_deg)
+    if cam.mass_g > 0:
+        depth, width, height = cam.module_size
+        # its own welded body: the duck's bodies have explicit inertia, so a geom's mass on them would be ignored
+        module = spec.body(body_name).add_body(name="maixcam2_module", pos=module_center(cam, p_body, R_bc).tolist(), quat=q.tolist())
+        module.add_geom(
+            name="maixcam2_module", type=mujoco.mjtGeom.mjGEOM_BOX, size=[width / 2, height / 2, depth / 2],
+            mass=cam.mass_g / 1000, contype=0, conaffinity=0, rgba=[0.12, 0.12, 0.13, 1],
+        )
 
     # --- floors: several textures to swap per episode
     floor_mats = []
