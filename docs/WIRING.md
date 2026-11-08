@@ -1,6 +1,6 @@
 # Wiring the MaixCAM2 into Open Duck Mini v2
 
-This replaces the [Pi Zero pin table](https://github.com/apirrone/Open_Duck_Mini/blob/v2/docs/assembly_guide.md#electronics) in the v2 assembly guide. Everything else in the v2 build (battery pack, BMS, UBEC, servo driver board, BNO055, foot switches) stays as it is.
+This replaces the [Pi Zero pin table](https://github.com/apirrone/Open_Duck_Mini/blob/v2/docs/assembly_guide.md#electronics) in the v2 assembly guide. Everything else in the v2 build (battery pack, BMS, UBEC, servo driver board, foot switches) stays as it is, except the IMU: this build uses a **BNO086** breakout in place of the BNO055 (see [BOM.md](BOM.md)).
 
 Pin names come from Sipeed's [MaixCAM2 pinout](https://wiki.sipeed.com/hardware/assets/maixcam/maixcam2_pins.jpg) and the MaixPy [pinmap](https://wiki.sipeed.com/maixpy/doc/en/peripheral/pinmap.html), [UART](https://wiki.sipeed.com/maixpy/doc/en/peripheral/uart.html), [I2C](https://wiki.sipeed.com/maixpy/doc/en/peripheral/i2c.html) and [PWM](https://wiki.sipeed.com/maixpy/doc/en/peripheral/pwm.html) pages. Every pin name, function and `/dev` path here was checked against the MaixCDK pinmap source (`components/peripheral/port/maixcam2/maix_pinmap.cpp`) and the MaixPy peripheral docs. The pin functions at boot are read from hardware, so run `python3 scripts/find_pins.py` once before you solder.
 
@@ -21,12 +21,12 @@ The MaixCAM2 has two 2x6 2.54 mm headers and one 6-pin 1.25 mm connector. Pins a
 ```
    LEFT 2x6 header (body sensors)               RIGHT 2x6 header (power + head)
    ---------------------------------            ---------------------------------
-   3V3  -> BNO055 VIN                           GND  <- UBEC GND
-   GND  -> BNO055 GND, foot switch common       5V   <- UBEC 5V out
+   3V3  -> BNO086 3V3/VIN                       GND  <- UBEC GND
+   GND  -> BNO086 GND, foot switch common       5V   <- UBEC 5V out
    B0   (UART2_TX)  spare                       A31  PWM7 -> left antenna signal
    B1   (UART2_RX)  spare                       B2   PWM4 -> right antenna signal
-   A8   I2C7_SCL -> BNO055 SCL                  A28  UART0_TX  (console, do not use)
-   A9   I2C7_SDA -> BNO055 SDA                  A4   GPIO   -> projector LED
+   A8   I2C7_SCL -> BNO086 SCL                  A28  UART0_TX  (console, do not use)
+   A9   I2C7_SDA -> BNO086 SDA                  A4   GPIO   -> projector LED
    B21  GPIO in  <- left foot switch            A2   (blocked)
    B18  (SPI2_MOSI) spare                       A29  UART0_RX  (console, do not use)
    B19  (SPI2_MISO) spare                       B3   PWM5   -> left eye LED
@@ -51,11 +51,12 @@ The header silkscreen shows the same pins in two rows, so match by name, not by 
 | | *or* UART RX | A21 (6-pin) | `UART4_TX`, `/dev/ttyS4` | Optional, see below. |
 | | *or* UART TX | A22 (6-pin) | `UART4_RX` | |
 | | *or* GND | GND (6-pin) | | |
-| **BNO055** (Adafruit breakout) | VIN | 3V3 (left header) | | The breakout pull-ups then sit at 3.3 V, which is what the MaixCAM2 needs. |
+| **BNO086** (BNO08x breakout, e.g. SparkFun VR IMU SEN-22857; an Adafruit BNO085 works too) | 3V3 / VIN | 3V3 (left header) | | **3.3 V only**: the chip's limit is 3.6 V and some BNO086 boards have no regulator. The breakout pull-ups then sit at 3.3 V, which is what the MaixCAM2 needs. A Qwiic/STEMMA QT to female Dupont cable fits the header. |
 | | GND | GND (left header) | | |
-| | SCL | A8 | `I2C7_SCL` | `/dev/i2c-7`, address 0x28 |
+| | SCL | A8 | `I2C7_SCL` | `/dev/i2c-7`, address **0x4B** (SparkFun default) or **0x4A** (ADR/DI jumper, Adafruit default). The runtime scans both. |
 | | SDA | A9 | `I2C7_SDA` | |
-| | 3VO, RST, INT, ADR, PS0, PS1 | not connected | | as on the Pi |
+| | INT, RST | not connected | | The driver polls, so INT is not needed. Breakouts pull RST high; if yours doesn't, tie RST to 3V3. |
+| | PS0, PS1 | not connected | | Must read low for I2C; breakouts pull them down (SparkFun: leave the PS jumpers open). |
 | **Left foot switch** | NO contact | B21 | `GPIOB21` | 10 kΩ pull-up from B21 to 3V3 (`maix.gpio` does not enable an internal pull-up on inputs). Closed = foot on the ground. |
 | | COM | GND (left header) | | |
 | **Right foot switch** | NO contact | B20 | `GPIOB20` | 10 kΩ pull-up from B20 to 3V3. |
@@ -100,7 +101,7 @@ This is the v2 layout with the Pi swapped out. The MaixCAM2 draws more than a Pi
 
 ```bash
 python3 scripts/find_pins.py      # every pin above lists the function in the table
-python3 scripts/test_imu.py       # BNO055 found on i2c-7 @0x28
+python3 scripts/test_imu.py       # BNO08x on i2c-7 @0x4b (or 0x4a), firmware x.y.z
 python3 scripts/test_feet.py      # press each foot, the right side changes
 python3 scripts/check_motors.py   # all 14 servos answer
 ```

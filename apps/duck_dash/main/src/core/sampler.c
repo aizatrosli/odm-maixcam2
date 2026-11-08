@@ -1,7 +1,8 @@
 /* The sampler thread: reads every device at ~20 Hz into a snapshot that the
  * render loop copies. Nothing here turns servo torque on or writes servo
- * registers; the only writes are the BNO055 set-up (when the chip is still in
- * CONFIG mode) and pin functions through the platform. */
+ * registers; the only writes are the BNO086 report requests (SH-2 Set
+ * Feature, harmless if diagnose.py already asked for them) and pin functions
+ * through the platform. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <math.h>
@@ -42,7 +43,7 @@ struct dash_sampler {
 
     bno_dev imu;
     int imu_open, imu_fails;
-    double imu_next_try;
+    double imu_next_try, imu_last_report;
 
     int foot_fd[2];
     double feet_next_try;
@@ -243,52 +244,49 @@ static void sample_imu(dash_sampler *s, double now)
         if (r < 0) {
             w->imu_st = ST_FAIL;
             if (s->cfg.imu_bus >= 0)
-                snprintf(w->imu_msg, sizeof w->imu_msg, "no BNO055 on i2c-%d @0x%02x", s->cfg.imu_bus, s->cfg.imu_addr);
+                snprintf(w->imu_msg, sizeof w->imu_msg, "no BNO086 on i2c-%d @0x%02x", s->cfg.imu_bus, s->cfg.imu_addr);
             else
-                snprintf(w->imu_msg, sizeof w->imu_msg, "no BNO055 on i2c-0..7");
+                snprintf(w->imu_msg, sizeof w->imu_msg, "no BNO086 on i2c-0..7");
             return;
         }
-        bno_setup(&s->imu, s->cfg.imu_upside_down, s->cfg.imu_offsets_path);
+        bno_start(&s->imu, 20000); /* 50 Hz is plenty for the screen */
         s->imu_open = 1;
         s->imu_fails = 0;
+        s->imu_last_report = now;
     }
-    uint8_t d[18], c = 0, tmp = 0, mode = 0;
-    if (bno_read(&s->imu, 0x08, d, 18) < 0 || bno_read(&s->imu, 0x35, &c, 1) < 0) {
-        if (++s->imu_fails > 5) {
+    int n = bno_poll(&s->imu);
+    if (n > 0) s->imu_last_report = now;
+    if (n < 0 || now - s->imu_last_report > 2.0) {
+        if (++s->imu_fails > 5 || n >= 0) {
             bno_close(&s->imu);
             s->imu_open = 0;
             w->imu_st = ST_FAIL;
-            snprintf(w->imu_msg, sizeof w->imu_msg, "BNO055 stopped answering");
+            snprintf(w->imu_msg, sizeof w->imu_msg, n < 0 ? "BNO086 stopped answering" : "BNO086 stopped reporting");
         }
         return;
     }
     s->imu_fails = 0;
-    bno_read(&s->imu, 0x34, &tmp, 1);
-    bno_read(&s->imu, 0x3D, &mode, 1);
-    int16_t v[9];
-    for (int i = 0; i < 9; i++) v[i] = (int16_t)(d[2 * i] | d[2 * i + 1] << 8);
-    for (int i = 0; i < 3; i++) {
-        w->acc[i] = v[i] / 100.0f;
-        w->gyro[i] = v[6 + i] / 16.0f * 0.0174533f;
+    if (!s->imu.have_acc || !s->imu.have_gyro) {
+        w->imu_st = ST_WARN;
+        snprintf(w->imu_msg, sizeof w->imu_msg, "i2c-%d @0x%02x, waiting for reports", s->imu.bus, s->imu.addr);
+        return;
     }
-    w->imu_temp = (int8_t)tmp;
-    w->calib[0] = c >> 6 & 3;
-    w->calib[1] = c >> 4 & 3;
-    w->calib[2] = c >> 2 & 3;
-    w->calib[3] = c & 3;
+    bno_remap(s->cfg.imu_remap, s->cfg.imu_upside_down, s->imu.acc, w->acc);
+    bno_remap(s->cfg.imu_remap, s->cfg.imu_upside_down, s->imu.gyro, w->gyro);
+    for (int i = 0; i < 3; i++) w->calib[i] = s->imu.accuracy[i];
     float g = sqrtf(w->acc[0] * w->acc[0] + w->acc[1] * w->acc[1] + w->acc[2] * w->acc[2]);
     w->roll = atan2f(w->acc[1], w->acc[2]) * 57.2958f;
     w->pitch = atan2f(-w->acc[0], sqrtf(w->acc[1] * w->acc[1] + w->acc[2] * w->acc[2])) * 57.2958f;
-    if ((mode & 0x0F) == 0) {
+    if (s->imu.reset_cause == 3) {
         w->imu_st = ST_WARN;
-        snprintf(w->imu_msg, sizeof w->imu_msg, "i2c-%d @0x%02x in CONFIG mode", s->imu.bus, s->imu.addr);
+        snprintf(w->imu_msg, sizeof w->imu_msg, "i2c-%d: last reset by watchdog", s->imu.bus);
     } else if (g < 8.8f || g > 10.8f) {
         w->imu_st = ST_WARN;
         snprintf(w->imu_msg, sizeof w->imu_msg, "i2c-%d: |g| = %.1f m/s2", s->imu.bus, g);
     } else {
         w->imu_st = ST_OK;
-        snprintf(w->imu_msg, sizeof w->imu_msg, "i2c-%d @0x%02x%s", s->imu.bus, s->imu.addr,
-                 exists(s->cfg.imu_offsets_path) ? "" : ", no offsets file");
+        snprintf(w->imu_msg, sizeof w->imu_msg, "i2c-%d @0x%02x fw %d.%d.%d%s", s->imu.bus, s->imu.addr, s->imu.sw_major,
+                 s->imu.sw_minor, s->imu.sw_patch, exists(s->cfg.imu_offsets_path) ? "" : ", not calibrated");
     }
 }
 
@@ -491,7 +489,7 @@ dash_sampler *dash_sampler_new(const dash_config *cfg, const dash_options *opt, 
     s->t0 = dash_now();
     s->w.batt_pct = -1;
     s->w.foot[0] = s->w.foot[1] = -1;
-    for (int i = 0; i < 4; i++) s->w.calib[i] = -1;
+    for (int i = 0; i < 3; i++) s->w.calib[i] = -1;
     s->cam_st = opt->camera_mode ? ST_UNKNOWN : ST_OFF;
     snprintf(s->cam_msg, sizeof s->cam_msg, "%s", opt->camera_mode ? "starting" : "preview off");
     pthread_mutex_init(&s->mu, NULL);

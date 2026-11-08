@@ -190,31 +190,145 @@ int ft_read(ft_bus *b, int id, int addr, int len, uint8_t *out)
     return err;
 }
 
-/* ===================================================================== BNO055 */
+/* ===================================================================== BNO08x */
 
-int bno_read(bno_dev *d, int reg, uint8_t *buf, int n)
+static void sleep_ms(int ms)
 {
-    uint8_t r = (uint8_t)reg;
-    struct i2c_msg msgs[2] = {
-        {(uint16_t)d->addr, 0, 1, &r},
-        {(uint16_t)d->addr, I2C_M_RD, (uint16_t)n, buf},
-    };
-    struct i2c_rdwr_ioctl_data x = {msgs, 2};
-    if (ioctl(d->fd, I2C_RDWR, &x) == 2) return 0;
-    /* some controllers dislike repeated starts: plain write then read */
-    if (write(d->fd, &r, 1) != 1) return -1;
-    return read(d->fd, buf, n) == n ? 0 : -1;
+    struct timespec ts = {ms / 1000, (ms % 1000) * 1000000L};
+    nanosleep(&ts, NULL);
 }
 
-int bno_write(bno_dev *d, int reg, uint8_t val)
+static int bno_write_packet(bno_dev *d, int channel, const uint8_t *p, int n)
 {
-    uint8_t b[2] = {(uint8_t)reg, val};
-    return write(d->fd, b, 2) == 2 ? 0 : -1;
+    uint8_t b[64];
+    if (n + 4 > (int)sizeof b) return -1;
+    b[0] = (uint8_t)((n + 4) & 0xFF);
+    b[1] = (uint8_t)((n + 4) >> 8);
+    b[2] = (uint8_t)channel;
+    b[3] = d->seq[channel]++;
+    memcpy(b + 4, p, n);
+    return write(d->fd, b, n + 4) == n + 4 ? 0 : -1;
+}
+
+/* One SHTP packet into buf. Returns payload length (>0), 0 = nothing queued, -1 = I2C error. */
+static int bno_read_packet(bno_dev *d, int *channel, uint8_t *buf, int cap)
+{
+    uint8_t h[4];
+    if (read(d->fd, h, 4) != 4) return -1;
+    int len = (h[0] | h[1] << 8) & 0x7FFF;
+    if (len == 0 || len == 0x7FFF) return 0;
+    if (len < 4 || h[2] > 5) return -1;
+    *channel = h[2];
+    int remaining = len - 4, got = 0;
+    uint8_t chunk[256];
+    while (remaining > 0) {
+        int n = remaining + 4 < (int)sizeof chunk ? remaining + 4 : (int)sizeof chunk;
+        if (read(d->fd, chunk, n) != n) return -1;
+        int take = n - 4;
+        if (got + take > cap) take = cap - got > 0 ? cap - got : 0; /* drop what does not fit */
+        memcpy(buf + got, chunk + 4, take);
+        got += take;
+        remaining -= n - 4;
+    }
+    return got;
+}
+
+static int report_len(uint8_t id)
+{
+    switch (id) {
+    case 0xF1: case 0xF8: return 16;
+    case 0xFA: case 0xFB: return 5;
+    case 0xFC: return 17;
+    case 0x01: case 0x02: case 0x03: case 0x04: case 0x06: return 10;
+    case 0x05: case 0x09: return 14;
+    case 0x08: return 12;
+    case 0x07: case 0x0F: return 16;
+    default: return 0;
+    }
+}
+
+static int bno_enable(bno_dev *d, int report_id, int interval_us)
+{
+    uint8_t r[17] = {0xFD, (uint8_t)report_id};
+    for (int i = 0; i < 4; i++) r[5 + i] = (uint8_t)((unsigned)interval_us >> (8 * i));
+    return bno_write_packet(d, 2, r, 17);
+}
+
+int bno_start(bno_dev *d, int interval_us)
+{
+    if (bno_enable(d, 0x01, interval_us) < 0 || bno_enable(d, 0x02, interval_us) < 0) return -1;
+    d->interval_us = interval_us;
+    return 0;
+}
+
+int bno_parse(bno_dev *d, int channel, const uint8_t *p, int n)
+{
+    if (channel == 1) {
+        if (n >= 1 && p[0] == 1) {
+            d->resets++;
+            if (d->interval_us && d->fd >= 0) bno_start(d, d->interval_us); /* it forgot its reports */
+        }
+        return 0;
+    }
+    if (channel < 2 || channel > 4) return 0;
+    int reports = 0;
+    for (int i = 0; i < n;) {
+        int len = report_len(p[i]);
+        if (!len || i + len > n) break;
+        const uint8_t *r = p + i;
+        if (r[0] == 0xF8 && !d->product_ok) {
+            d->product_ok = 1;
+            d->reset_cause = r[1];
+            d->sw_major = r[2];
+            d->sw_minor = r[3];
+            d->sw_patch = r[12] | r[13] << 8;
+        } else if (r[0] >= 0x01 && r[0] <= 0x03) {
+            float v[3];
+            for (int k = 0; k < 3; k++) v[k] = (float)(int16_t)(r[4 + 2 * k] | r[5 + 2 * k] << 8);
+            float scale = r[0] == 0x01 ? 1.0f / 256 : r[0] == 0x02 ? 1.0f / 512 : 1.0f / 16;
+            float *dst = r[0] == 0x01 ? d->acc : r[0] == 0x02 ? d->gyro : NULL;
+            if (dst)
+                for (int k = 0; k < 3; k++) dst[k] = v[k] * scale;
+            if (r[0] == 0x01) d->have_acc = 1;
+            if (r[0] == 0x02) d->have_gyro = 1;
+            d->accuracy[r[0] - 1] = r[2] & 3;
+            reports++;
+        }
+        i += len;
+    }
+    return reports;
+}
+
+int bno_poll(bno_dev *d)
+{
+    static uint8_t buf[BNO_MAX_PACKET];
+    int reports = 0;
+    for (int k = 0; k < 32; k++) {
+        int ch = 0;
+        int n = bno_read_packet(d, &ch, buf, sizeof buf);
+        if (n < 0) return -1;
+        if (n == 0) break;
+        reports += bno_parse(d, ch, buf, n);
+    }
+    return reports;
+}
+
+static int ask_product_id(bno_dev *d, int timeout_ms)
+{
+    uint8_t req[2] = {0xF9, 0};
+    if (bno_write_packet(d, 2, req, 2) < 0) return -1;
+    for (int t = 0; t < timeout_ms && !d->product_ok; t += 5) {
+        if (bno_poll(d) < 0) return -1;
+        if (!d->product_ok) sleep_ms(5);
+    }
+    return d->product_ok ? 0 : -1;
 }
 
 int bno_open(bno_dev *d, int bus, int addr)
 {
     char path[32];
+    memset(d, 0, sizeof *d);
+    for (int i = 0; i < 3; i++) d->accuracy[i] = -1;
     snprintf(path, sizeof path, "/dev/i2c-%d", bus);
     d->fd = open(path, O_RDWR | O_CLOEXEC);
     d->bus = bus;
@@ -224,20 +338,29 @@ int bno_open(bno_dev *d, int bus, int addr)
         bno_close(d);
         return -errno;
     }
-    uint8_t id = 0;
-    bno_write(d, 0x07, 0); /* page 0 */
-    if (bno_read(d, 0x00, &id, 1) < 0 || id != BNO_CHIP_ID) {
+    uint8_t h[4];
+    if (read(d->fd, h, 4) != 4) { /* nothing answers at this address */
         bno_close(d);
         return -ENODEV;
     }
-    return 0;
+    /* No reset first: diagnose.py may be reading it. Reset only if it stays quiet. */
+    if (ask_product_id(d, 300) == 0) return 0;
+    uint8_t rst = 1;
+    bno_write_packet(d, 1, &rst, 1);
+    memset(d->seq, 0, sizeof d->seq);
+    d->seq[1] = 1;
+    sleep_ms(300);
+    if (ask_product_id(d, 1000) == 0) return 0;
+    bno_close(d);
+    return -ENODEV;
 }
 
 int bno_scan(bno_dev *d)
 {
+    static const int addrs[2] = {BNO_ADDR_B, BNO_ADDR_A};
     for (int bus = 0; bus < 8; bus++)
-        for (int a = 0x28; a <= 0x29; a++)
-            if (bno_open(d, bus, a) == 0) return 0;
+        for (int a = 0; a < 2; a++)
+            if (bno_open(d, bus, addrs[a]) == 0) return 0;
     return -ENODEV;
 }
 
@@ -247,61 +370,12 @@ void bno_close(bno_dev *d)
     d->fd = -1;
 }
 
-void bno_remap_bytes(int upside_down, uint8_t *config, uint8_t *sign)
+void bno_remap(const int remap[6], int upside_down, const float in[3], float out[3])
 {
-    /* odm_maix/bno055.py: REMAP_UPRIGHT = (Y, X, Z, -, +, +), UPSIDE_DOWN = (Y, X, Z, -, -, -) */
-    *config = (2 << 4) | (0 << 2) | 1;
-    *sign = upside_down ? 0x07 : 0x04;
-}
-
-static void sleep_ms(int ms)
-{
-    struct timespec ts = {ms / 1000, (ms % 1000) * 1000000L};
-    nanosleep(&ts, NULL);
-}
-
-static int load_offsets(const char *path, int16_t out[11])
-{
-    FILE *f = path ? fopen(path, "r") : NULL;
-    if (!f) return -1;
-    char buf[1024];
-    size_t n = fread(buf, 1, sizeof buf - 1, f);
-    fclose(f);
-    buf[n] = 0;
-    char *p = strstr(buf, "bno055_offsets");
-    if (!p || !(p = strchr(p, '['))) return -1;
-    p++;
-    for (int i = 0; i < 11; i++) {
-        char *e;
-        long v = strtol(p, &e, 10);
-        if (e == p) return -1;
-        out[i] = (int16_t)v;
-        p = e;
-        while (*p == ',' || *p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') p++;
-    }
-    return 0;
-}
-
-int bno_setup(bno_dev *d, int upside_down, const char *offsets_path)
-{
-    uint8_t mode = 0;
-    if (bno_read(d, 0x3D, &mode, 1) < 0) return -1;
-    if ((mode & 0x0F) != 0) return 1; /* someone already runs it (walk.py, diagnose.py) */
-    uint8_t cfg, sign;
-    bno_remap_bytes(upside_down, &cfg, &sign);
-    bno_write(d, 0x3E, 0x00); /* normal power */
-    bno_write(d, 0x3F, 0x00); /* internal oscillator */
-    bno_write(d, 0x3B, 0x00); /* m/s^2, dps, deg, C */
-    bno_write(d, 0x41, cfg);
-    bno_write(d, 0x42, sign);
-    int16_t off[11];
-    if (load_offsets(offsets_path, off) == 0) {
-        const uint8_t *raw = (const uint8_t *)off; /* little endian, like struct.pack("<11h") */
-        for (int i = 0; i < 22; i++) bno_write(d, 0x55 + i, raw[i]);
-    }
-    bno_write(d, 0x3D, 0x0C); /* NDOF */
-    sleep_ms(20);
-    return 0;
+    /* odm_maix/bno08x.py: REMAP_UPRIGHT = (Y, X, Z, -, +, +), UPSIDE_DOWN = (Y, X, Z, -, -, -) */
+    static const int up[6] = {1, 0, 2, 1, 0, 0}, down[6] = {1, 0, 2, 1, 1, 1};
+    const int *m = remap && remap[0] >= 0 ? remap : upside_down ? down : up;
+    for (int i = 0; i < 3; i++) out[i] = m[3 + i] ? -in[m[i]] : in[m[i]];
 }
 
 /* ===================================================================== GPIO */

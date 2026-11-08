@@ -31,8 +31,9 @@
         "servo_port": "/dev/ttyACM0",
         "servo_baudrate": 1000000,
         "imu_i2c_bus": null,
-        "imu_address": 40,
+        "imu_address": 75,
         "imu_offsets_path": "~/imu_offsets.json",
+        "imu_axis_remap": null,
         "left_foot_gpio": "GPIOB21",
         "right_foot_gpio": "GPIOB20",
         "pinmap": {

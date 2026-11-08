@@ -6,7 +6,7 @@
     python3 scripts/calibrate.py offsets --nudge        # then fine-tune joint by joint with low torque
     python3 scripts/calibrate.py ranges                 # move each joint by hand, find its range and the encoder wrap
     python3 scripts/calibrate.py ranges --save-limits   # ... and save soft limits the runtime clamps targets to
-    python3 scripts/calibrate.py imu                    # BNO055 calibration, then upright/axis checks
+    python3 scripts/calibrate.py imu                    # BNO086 calibration, then upright/axis checks
 
 Every step works with --dry-run against the simulated duck. Results are
 written to duck_config.json (a timestamped .bak copy is kept) only after you
@@ -103,11 +103,11 @@ def cmd_imu(ctx, args):
     dev = ctx.imu_device()
     path = ctx.config.maixcam2["imu_offsets_path"]
     if not args.check_only:
-        print("  Move the duck slowly through several orientations (each face down for a few seconds, then a figure 8)")
-        print("  until every value reaches 3. Gyro settles when it is still, accel needs ~6 orientations, mag the figure 8.")
+        print("  Hold the duck still for a few seconds (gyro), then turn it slowly through six faces like a die,")
+        print("  holding each for a second (accel), until accel and gyro reach 3. A figure 8 helps mag, which is optional.")
         poll = (lambda: ctx.sim.act("imu.calibrate_motion")) if ctx.dry_run else None
         calib.calibrate_imu(dev, path, timeout=args.timeout, on_poll=poll, poll=0.05 if ctx.dry_run else 0.5)
-        print(f"  saved BNO055 offsets to {path}")
+        print(f"  saved the calibration to the BNO086's flash (record in {path})")
     status = 0
     for fn in (check_imu_still, check_imu_upright) + ((check_imu_axes,) if ctx.interactive else ()):
         r = fn(ctx)
@@ -170,7 +170,7 @@ def main(argv=None):
     r.add_argument("--seconds", type=float, default=4.0)
     r.add_argument("--out", default="~/joint_ranges.json")
     r.add_argument("--save-limits", action="store_true", help="write maixcam2.joint_limits (soft limits) to the config")
-    m = sub.add_parser("imu", help="BNO055 calibration and orientation check")
+    m = sub.add_parser("imu", help="BNO086 calibration and orientation check")
     m.add_argument("--check-only", action="store_true")
     m.add_argument("--timeout", type=float, default=180)
     s = sub.add_parser("servo-id", help="set up a new servo")

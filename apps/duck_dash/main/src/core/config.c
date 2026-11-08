@@ -164,7 +164,8 @@ void dash_config_defaults(dash_config *c)
     dash_strlcpy(c->servo_port, "/dev/ttyACM0", sizeof c->servo_port);
     c->servo_baud = 1000000;
     c->imu_bus = -1;
-    c->imu_addr = 0x28;
+    c->imu_addr = 0x4B; /* SparkFun BNO086 default; the scan also tries 0x4A */
+    c->imu_remap[0] = -1;
     snprintf(c->imu_offsets_path, sizeof c->imu_offsets_path, "%s/imu_offsets.json", home);
     dash_strlcpy(c->left_foot, "GPIOB21", sizeof c->left_foot);
     dash_strlcpy(c->right_foot, "GPIOB20", sizeof c->right_foot);
@@ -215,6 +216,22 @@ int dash_config_load(dash_config *c, const char *path)
     if (jstr(js, "maixcam2.imu_offsets_path", c->imu_offsets_path, sizeof c->imu_offsets_path))
         expand_home(c->imu_offsets_path, sizeof c->imu_offsets_path);
     if (jbool(js, "imu_upside_down", &b)) c->imu_upside_down = b;
+    const char *rm = jpath(js, "maixcam2.imu_axis_remap");
+    if (rm && *rm == '[') {
+        int v[6], k = 0;
+        const char *q = ws(rm + 1);
+        while (k < 6) {
+            char *e;
+            long x = strtol(q, &e, 10);
+            if (e == q) break;
+            v[k++] = (int)x;
+            q = ws(e);
+            if (*q == ',') q = ws(q + 1);
+        }
+        int ok = k == 6;
+        for (int i = 0; ok && i < 6; i++) ok = v[i] >= 0 && v[i] <= (i < 3 ? 2 : 1);
+        if (ok) memcpy(c->imu_remap, v, sizeof v);
+    }
     jstr(js, "maixcam2.left_foot_gpio", c->left_foot, sizeof c->left_foot);
     jstr(js, "maixcam2.right_foot_gpio", c->right_foot, sizeof c->right_foot);
     jstr(js, "maixcam2.policy_backend", c->policy_backend, sizeof c->policy_backend);

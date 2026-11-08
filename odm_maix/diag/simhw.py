@@ -1,8 +1,8 @@
-"""A virtual Open Duck Mini for dry runs: servo bus, BNO055 and foot switches.
+"""A virtual Open Duck Mini for dry runs: servo bus, BNO08x IMU and foot switches.
 
-The simulator works at the wire level (Feetech packets, BNO055 registers), so
-a dry run goes through the real drivers in ``odm_maix.feetech`` and
-``odm_maix.bno055``, not through mocks of them. Faults can be injected to see
+The simulator works at the wire level (Feetech packets, BNO08x SHTP packets),
+so a dry run goes through the real drivers in ``odm_maix.feetech`` and
+``odm_maix.bno08x``, not through mocks of them. Faults can be injected to see
 what each check reports when something is wrong::
 
     missing:23        servo 23 does not answer
@@ -15,9 +15,9 @@ what each check reports when something is wrong::
     eeprom:12         servo 12 is in wheel mode with a 20 us return delay
     slow_bus          every bus transaction takes 6 ms
     flaky_bus         1 in 20 bus reads times out
-    upside_down       the BNO055 is mounted upside down but the config says upright
-    no_imu            no BNO055 on the I2C bus
-    imu_selftest      the BNO055 power-on self test failed (gyro)
+    upside_down       the BNO08x is mounted upside down but the config says upright
+    no_imu            no BNO08x on the I2C bus
+    imu_watchdog      the BNO08x says its last reset came from its watchdog
     swapped_feet      left and right foot switches are swapped
     noisy_feet        the foot inputs float (missing pull-ups)
 """
@@ -32,7 +32,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from .. import bno055 as bno
+from .. import bno08x as bno
 from .. import feetech as ft
 from ..config import JOINT_NAMES
 from ..hwi import INIT_POS, JOINT_IDS
@@ -184,22 +184,20 @@ def _rot_xy(roll: float, pitch: float) -> np.ndarray:
     return ry @ rx
 
 
-class VirtualBNO055Bus:
-    """SMBus stand-in with a BNO055 behind it.
+class VirtualBNO08xBus:
+    """I2C stand-in with a BNO08x (SH-2 firmware, SHTP packets) behind it.
 
     Body frame: x forward, y left, z up. The chip is mounted so that the
     runtime's REMAP_UPRIGHT (or REMAP_UPSIDE_DOWN) turns its sensor axes into
-    body axes. ``mounting`` says how it is really mounted.
+    body axes. ``mounting`` says how it is really mounted. Reads follow the
+    SHTP rules: every read starts with a 4-byte header, and a packet longer
+    than the read continues in the next one.
     """
 
-    def __init__(self, address: int = bno.ADDRESS_A, mounting: str = "upright", selftest: int = 0x0F, seed: int = 0):
+    def __init__(self, address: int = bno.ADDRESS_B, mounting: str = "upright", reset_cause: int = 1, seed: int = 0):
         self.address = address
         self.mounting = mounting
-        self.regs = bytearray(0x80)
-        self.regs[bno.REG_CHIP_ID] = bno.CHIP_ID
-        self.regs[bno.REG_ST_RESULT] = selftest
-        self.regs[bno.REG_SYS_STATUS] = 5
-        self.regs[bno.REG_AXIS_MAP_CONFIG] = 0x24
+        self.reset_cause = reset_cause
         self.roll = 0.0
         self.pitch = 0.0
         self.gyro_body = np.zeros(3)
@@ -207,6 +205,15 @@ class VirtualBNO055Bus:
         self._motion_until = 0.0
         self._rng = np.random.default_rng(seed)
         self.calibrated = False
+        self.dcd_saved = False
+        self.me_cal = (0, 1, 1)  # accel, gyro, mag dynamic calibration (SH-2 defaults)
+        self.enabled = {}  # report id -> interval s
+        self._next_due = {}
+        self._out = []  # queued (channel, payload)
+        self._cur = None  # [channel, payload, offset]
+        self._seq = [0] * 6
+        self._t0 = time.monotonic()
+        self._boot()
 
     # physics ---------------------------------------------------------------
     def set_pose(self, roll: float = 0.0, pitch: float = 0.0) -> None:
@@ -222,46 +229,104 @@ class VirtualBNO055Bus:
             return np.array([-b[1], -b[0], -b[2]])
         return np.array([b[1], -b[0], b[2]])
 
-    def _remap(self, s: np.ndarray) -> np.ndarray:
-        cfg, sign = self.regs[bno.REG_AXIS_MAP_CONFIG], self.regs[bno.REG_AXIS_MAP_SIGN]
-        src = [cfg & 3, (cfg >> 2) & 3, (cfg >> 4) & 3]
-        neg = [(sign >> 2) & 1, (sign >> 1) & 1, sign & 1]
-        return np.array([(-1 if neg[i] else 1) * s[src[i]] for i in range(3)])
-
-    def _data_block(self) -> bytes:
+    def _vectors(self):
         acc_body = _rot_xy(self.roll, self.pitch).T @ np.array([0.0, 0.0, 9.81])
         acc_body = acc_body + self._rng.normal(0, 0.03, 3)
         if time.monotonic() > self._motion_until:
             self.gyro_body = np.zeros(3)
         gyro_body = self.gyro_body + self.gyro_bias + self._rng.normal(0, 0.002, 3)
-        acc = self._remap(self._body_to_sensor(acc_body))
-        gyro = self._remap(self._body_to_sensor(gyro_body))
-        acc_raw = [int(round(a / bno.ACC_SCALE)) for a in acc]
-        gyro_raw = [int(round(g / bno.GYRO_SCALE)) for g in gyro]
-        return struct.pack("<9h", *acc_raw, 0, 0, 0, *gyro_raw)
+        return self._body_to_sensor(acc_body), self._body_to_sensor(gyro_body)
 
-    # smbus surface -----------------------------------------------------------
+    # SH-2 behaviour ------------------------------------------------------------
+    def _boot(self) -> None:
+        self.enabled.clear()
+        self._out = [(bno.CH_COMMAND, bytes(range(40)) * 7), (bno.CH_EXECUTABLE, bytes([bno.EXE_RESET]))]
+        self._cur = None
+
+    def _accuracy(self, rid: int) -> int:
+        if self.calibrated:
+            return 3
+        return {bno.REPORT_ACCELEROMETER: 1, bno.REPORT_GYROSCOPE: 3, bno.REPORT_MAGNETOMETER: 0}.get(rid, 0)
+
+    def _report(self, rid: int, vec, scale: float) -> bytes:
+        raw = [int(max(-32768, min(32767, round(v / scale)))) for v in vec]
+        return struct.pack("<BBBB3h", rid, 0, self._accuracy(rid), 0, *raw)
+
+    def _due_reports(self) -> None:
+        now = time.monotonic()
+        due = [rid for rid, t in self._next_due.items() if rid in self.enabled and now >= t]
+        if not due or self._out or self._cur:
+            return
+        acc, gyro = self._vectors()
+        body = bytearray(struct.pack("<BI", bno.REPORT_BASE_TIMESTAMP, 0))
+        for rid in sorted(due):
+            if rid == bno.REPORT_ACCELEROMETER:
+                body += self._report(rid, acc, bno.ACC_SCALE)
+            elif rid == bno.REPORT_GYROSCOPE:
+                body += self._report(rid, gyro, bno.GYRO_SCALE)
+            elif rid == bno.REPORT_MAGNETOMETER:
+                body += self._report(rid, [20.0, 0.0, -40.0], bno.MAG_SCALE)
+            self._next_due[rid] = now + self.enabled[rid]
+        self._out.append((bno.CH_REPORTS, bytes(body)))
+
+    def _command_response(self, command: int, status: int, extra=()) -> None:
+        r = bytes([bno.REPORT_COMMAND_RESPONSE, 0, command, 0, 0, status] + list(extra))
+        self._out.append((bno.CH_CONTROL, r + bytes(16 - len(r))))
+
+    def _control(self, payload: bytes) -> None:
+        rid = payload[0]
+        if rid == bno.REPORT_PRODUCT_ID_REQUEST:
+            entry = struct.pack("<BBBBIIH2x", bno.REPORT_PRODUCT_ID_RESPONSE, self.reset_cause, 3, 12, 10004563, 2, 7)
+            self._out.append((bno.CH_CONTROL, entry * 4))
+        elif rid == bno.REPORT_SET_FEATURE:
+            _, sensor, _, _, interval_us, _, _ = struct.unpack("<BBBHIII", payload[:17])
+            if interval_us:
+                self.enabled[sensor] = interval_us / 1e6
+                self._next_due[sensor] = time.monotonic()
+            else:
+                self.enabled.pop(sensor, None)
+            self._out.append((bno.CH_CONTROL, bytes([bno.REPORT_GET_FEATURE_RESPONSE, sensor]) + payload[2:17]))
+        elif rid == bno.REPORT_COMMAND_REQUEST:
+            command = payload[2]
+            if command == bno.CMD_ME_CALIBRATION and payload[6] == bno.ME_CAL_CONFIGURE:
+                self.me_cal = tuple(payload[3:6])
+                self._command_response(command, 0, payload[3:6])
+            elif command == bno.CMD_SAVE_DCD:
+                self.dcd_saved = True
+                self._command_response(command, 0)
+
+    # I2C surface (what bno08x.LinuxI2C offers) -----------------------------------
     def _check(self, addr: int) -> None:
         if addr != self.address:
             raise OSError(121, "Remote I/O error")
 
-    def read_byte_data(self, addr: int, reg: int) -> int:
+    def write(self, addr: int, data: bytes) -> None:
         self._check(addr)
-        if reg == bno.REG_CALIB_STAT:
-            return 0xFF if self.calibrated else 0x30
-        return self.regs[reg]
+        length, channel, _, _ = bno.parse_header(data)
+        payload = bytes(data[4:length])
+        if channel == bno.CH_EXECUTABLE and payload[:1] == bytes([bno.EXE_RESET]):
+            self._boot()
+        elif channel == bno.CH_CONTROL and payload:
+            self._control(payload)
 
-    def write_byte_data(self, addr: int, reg: int, val: int) -> None:
+    def read(self, addr: int, n: int) -> bytes:
         self._check(addr)
-        self.regs[reg] = val & 0xFF
-        if bno.REG_OFFSETS <= reg < bno.REG_OFFSETS + 22:
-            self.calibrated = True
-
-    def read_i2c_block_data(self, addr: int, reg: int, n: int) -> List[int]:
-        self._check(addr)
-        if reg == bno.REG_ACC_DATA:
-            return list(self._data_block()[:n])
-        return list(self.regs[reg : reg + n])
+        if self._cur is None:
+            self._due_reports()
+            if not self._out:
+                return bytes(n)
+            ch, payload = self._out.pop(0)
+            self._cur = [ch, payload, 0, False]
+        ch, payload, off, cont = self._cur
+        left = len(payload) - off
+        take = min(n - 4, left)
+        out = bno.header(left + 4, ch, self._seq[ch], continuation=cont) + payload[off : off + take]
+        self._cur[2] += take
+        self._cur[3] = True
+        if self._cur[2] >= len(payload) and take > 0 or not payload:
+            self._seq[ch] = (self._seq[ch] + 1) & 0xFF
+            self._cur = None
+        return out + bytes(n - len(out))
 
     def close(self) -> None:
         pass
@@ -332,11 +397,11 @@ class SimDuck:
             latency_s=0.006 if "slow_bus" in f else 0.0,
             drop_rate=0.05 if "flaky_bus" in f else 0.0,
         )
-        self.imu_bus: Optional[VirtualBNO055Bus] = None
+        self.imu_bus: Optional[VirtualBNO08xBus] = None
         if "no_imu" not in f:
-            self.imu_bus = VirtualBNO055Bus(
+            self.imu_bus = VirtualBNO08xBus(
                 mounting="upside_down" if "upside_down" in f else "upright",
-                selftest=0x0B if "imu_selftest" in f else 0x0F,
+                reset_cause=3 if "imu_watchdog" in f else 1,
             )
         self.feet = VirtualFeet(swapped="swapped_feet" in f, noisy="noisy_feet" in f)
 

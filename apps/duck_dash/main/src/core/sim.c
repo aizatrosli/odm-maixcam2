@@ -101,7 +101,7 @@ void dash_sim_fill(dash_snapshot *s, const char *faults, double t)
     /* IMU */
     if (has_fault(faults, "no_imu", NULL)) {
         s->imu_st = ST_FAIL;
-        snprintf(s->imu_msg, sizeof s->imu_msg, "no BNO055 on i2c-0..7");
+        snprintf(s->imu_msg, sizeof s->imu_msg, "no BNO086 on i2c-0..7");
         memset(s->acc, 0, sizeof s->acc);
     } else {
         float roll = (float)(6 * sin(t * 0.7)), pitch = (float)(4 * sin(t * 0.5 + 1));
@@ -114,10 +114,9 @@ void dash_sim_fill(dash_snapshot *s, const char *faults, double t)
         s->gyro[2] = 0.002f;
         s->roll = roll;
         s->pitch = pitch;
-        s->imu_temp = 29;
-        s->calib[0] = 3; s->calib[1] = 3; s->calib[2] = 3; s->calib[3] = 2;
+        s->calib[0] = 3; s->calib[1] = 3; s->calib[2] = 2;
         s->imu_st = ST_OK;
-        snprintf(s->imu_msg, sizeof s->imu_msg, "i2c-7 @0x28, NDOF");
+        snprintf(s->imu_msg, sizeof s->imu_msg, "i2c-7 @0x4b fw 3.12.7");
     }
 
     /* feet */

@@ -54,7 +54,7 @@ def test_guided_checks_skip_without_interactive():
         ("eeprom:12", "servo.eeprom", "mode"),
         ("upside_down", "imu.upright", "imu_upside_down to true"),
         ("upside_down", "imu.axes", ""),
-        ("imu_selftest", "imu.chip", "self test"),
+        ("imu_watchdog", "imu.chip", "watchdog"),
         ("swapped_feet", "feet.press", "swapped"),
         ("noisy_feet", "feet.stable", "pull-up"),
         ("flaky_bus", "servo.timing", "bus errors"),
@@ -73,7 +73,7 @@ def test_faults_are_caught(fault, check, hint):
 def test_no_imu_skips_imu_checks():
     res = run(["no_imu"])
     assert res["imu.chip"].status == SKIP
-    assert "no BNO055" in res["imu.chip"].summary
+    assert "no BNO08x" in res["imu.chip"].summary
 
 
 def test_config_pin_conflict():
@@ -159,15 +159,17 @@ def test_hwi_clamps_to_joint_limits():
     assert goal == pytest.approx(1.0 + 0.1, abs=2 * calib.RAD_PER_COUNT)
 
 
-def test_imu_calibration_saves_offsets(tmp_path):
+def test_imu_calibration_saves_on_chip(tmp_path):
     sim = SimDuck()
-    from odm_maix import bno055
+    from odm_maix import bno08x
 
-    dev = bno055.BNO055(7, smbus=sim.imu_bus)
+    dev = bno08x.BNO08x(7, sim.imu_bus.address, i2c=sim.imu_bus)
     path = tmp_path / "imu.json"
     s = calib.calibrate_imu(dev, str(path), timeout=2, poll=0.01, on_poll=lambda: sim.act("imu.calibrate_motion"), out=lambda *a: None)
-    assert all(v == 3 for v in s.values())
-    assert len(json.loads(path.read_text())["bno055_offsets"]) == 11
+    assert s["accel"] == 3 and s["gyro"] == 3
+    assert sim.imu_bus.dcd_saved and sim.imu_bus.me_cal == (1, 1, 1)
+    assert bno08x.REPORT_MAGNETOMETER not in sim.imu_bus.enabled
+    assert bno08x.load_calibration_record(str(path))["status"]["accel"] == 3
 
 
 def test_diagnose_cli_exit_code(tmp_path):

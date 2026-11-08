@@ -7,7 +7,8 @@
 * joint ranges: move each joint through its range by hand, record the
   extremes, flag joints that cross the encoder wrap and optionally save soft
   limits that the HWI clamps targets to.
-* IMU: BNO055 self-calibration, saved to imu_offsets_path.
+* IMU: BNO086 motion-engine calibration, saved to the chip's flash (and a
+  record of it to imu_offsets_path).
 * servo setup: give a new servo its joint ID and the settings the runtime expects.
 """
 
@@ -22,7 +23,7 @@ from typing import Dict, Iterable, List, Optional
 
 import numpy as np
 
-from .. import bno055 as bno
+from .. import bno08x as bno
 from .. import feetech as ft
 from ..config import JOINT_NAMES
 from ..hwi import INIT_POS, JOINT_IDS
@@ -199,8 +200,12 @@ def soft_limits(ranges: Dict[str, Dict], margin: float = 0.05) -> Dict[str, List
 
 
 def calibrate_imu(dev, path: str, timeout: float = 180.0, out=print, poll=0.5, on_poll=None) -> Dict[str, int]:
-    """Run the BNO055's own calibration until every value reaches 3, then save the offsets."""
-    dev.mode = bno.NDOF_MODE
+    """Run the BNO086's own calibration until accel and gyro accuracy reach 3, then save it on the chip.
+
+    The magnetometer accuracy is shown but not waited for: the policy does not
+    use it, and the servos and battery disturb it anyway.
+    """
+    dev.begin_calibration()
     end = time.monotonic() + timeout
     last = None
     while True:
@@ -208,14 +213,16 @@ def calibrate_imu(dev, path: str, timeout: float = 180.0, out=print, poll=0.5, o
             on_poll()
         s = dev.calibration_status()
         if s != last:
-            out(f"    calibration {s}")
+            out(f"    accuracy {s}")
             last = s
-        if all(v == 3 for v in s.values()):
+        if s["accel"] == 3 and s["gyro"] == 3:
             break
         if time.monotonic() > end:
-            raise TimeoutError(f"IMU calibration did not finish in {timeout:.0f} s (last status {s})")
+            raise TimeoutError(f"IMU calibration did not finish in {timeout:.0f} s (last accuracy {s})")
         time.sleep(poll)
-    dev.save_offsets(path)
+    dev.save_calibration()
+    bno.save_calibration_record(path, s, dev)
+    dev.enable_report(bno.REPORT_MAGNETOMETER, 0)  # back to accel + gyro only
     return s
 
 

@@ -2,7 +2,7 @@
  *
  * The core (everything under src/core) is plain C99 + POSIX. It talks to the
  * hardware through Linux device files: the Feetech bus through the tty,
- * the BNO055 through /dev/i2c-N, the foot switches through /dev/gpiochipN.
+ * the BNO086 (BNO08x) through /dev/i2c-N, the foot switches through /dev/gpiochipN.
  * The few things that need Sipeed's SDK (screen, touch, camera, NPU, pin
  * functions) go through dash_platform, which the MaixCDK shim fills in.
  */
@@ -68,8 +68,7 @@ typedef struct {
     char imu_msg[DASH_STR];
     float gyro[3], acc[3]; /* rad/s, m/s^2, body frame after the axis remap */
     float roll, pitch;     /* deg, from gravity */
-    int imu_temp;
-    int calib[4]; /* sys gyro accel mag, 0..3, -1 unknown */
+    int calib[3]; /* report accuracy: accel gyro mag, 0..3, -1 unknown */
 
     /* foot switches: -1 unknown, 0 in the air, 1 contact */
     dash_status feet_st;
@@ -146,6 +145,7 @@ typedef struct {
     int imu_addr;
     char imu_offsets_path[160];
     int imu_upside_down;
+    int imu_remap[6]; /* maixcam2.imu_axis_remap, imu_remap[0] = -1 when unset */
     char left_foot[24], right_foot[24];
     char pinmap_pin[8][8], pinmap_func[8][24];
     int pinmap_n;

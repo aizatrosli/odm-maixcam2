@@ -122,29 +122,18 @@ class Context:
         return self._bus
 
     def imu_device(self):
-        """An open bno055.BNO055, with the remap from the config applied."""
-        from .. import bno055
+        """An open, streaming bno08x.BNO08x, with the remap from the config applied."""
+        from .. import bno08x
 
         if self._imu is None and self._imu_error is None:
-            m = self.config.maixcam2
             try:
                 if self.dry_run:
                     if self.sim.imu_bus is None:
-                        raise IOError("no BNO055 answered on /dev/i2c-0..7")
-                    bus, addr = 7, m["imu_address"]
-                    dev = bno055.BNO055(bus, addr, smbus=self.sim.imu_bus)
+                        raise IOError("no BNO08x answered at 0x4a/0x4b on /dev/i2c-0..7")
+                    dev = bno08x.open_from_config(self.config, i2c=self.sim.imu_bus)
                 else:
-                    bus, addr = m["imu_i2c_bus"], m["imu_address"]
-                    if bus is None:
-                        found = bno055.scan_for_bno055()
-                        if found is None:
-                            raise IOError("no BNO055 answered on /dev/i2c-0..7")
-                        bus, addr = found
-                    dev = bno055.BNO055(bus, addr)
-                dev.address = addr
-                dev.set_axis_remap(
-                    bno055.REMAP_UPSIDE_DOWN if self.config.imu_upside_down else bno055.REMAP_UPRIGHT
-                )
+                    dev = bno08x.open_from_config(self.config)
+                dev.start(100)
                 self._imu = dev
             except Exception as e:
                 self._imu_error = e

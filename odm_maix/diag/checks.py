@@ -16,7 +16,7 @@ from typing import List
 
 import numpy as np
 
-from .. import bno055 as bno
+from .. import bno08x as bno
 from .. import feetech as ft
 from ..config import JOINT_NAMES
 from ..hwi import INIT_POS, JOINT_IDS
@@ -146,7 +146,14 @@ def check_config_pins(ctx):
     by_pin = {p: list(users.get(p, [])) + ([f"pinmap {pinmap[p]}"] if p in pinmap else []) for p in set(users) | set(pinmap)}
     pinmap = m.get("pinmap") or {}
     if m.get("imu_i2c_bus") in (None, 7) and not ("A8" in pinmap and "A9" in pinmap):
-        problems.append("pinmap has no A8/A9 I2C7 entries, the BNO055 will not be reachable")
+        problems.append("pinmap has no A8/A9 I2C7 entries, the BNO086 will not be reachable")
+    if m.get("imu_i2c_bus") is not None and m.get("imu_address") not in bno.ADDRESSES:
+        problems.append(f"imu_address is 0x{int(m.get('imu_address') or 0):02x}; the BNO086 answers at 0x4a or 0x4b (0x28 was the BNO055)")
+    if m.get("imu_axis_remap"):
+        try:
+            bno.remap_from_config(ctx.config)
+        except (ValueError, TypeError) as e:
+            problems.append(str(e))
     if "ttyS4" in str(m["servo_port"]) and not ("A21" in pinmap and "A22" in pinmap):
         problems.append("servo_port is /dev/ttyS4 but pinmap has no A21/A22 UART4 entries")
     if m["left_foot_gpio"] == m["right_foot_gpio"]:
@@ -160,7 +167,7 @@ def check_config_pins(ctx):
 
 
 def check_python_deps(ctx):
-    need = ["numpy", "serial", "smbus2"]
+    need = ["numpy", "serial"]
     if ctx.config.maixcam2["policy_backend"] == "onnx":
         need.append("onnxruntime")
     missing = []
@@ -433,33 +440,32 @@ def check_servo_timing(ctx):
 
 def check_imu_chip(ctx):
     dev = ctx.imu_device()
-    st = dev.self_test()
-    sys_status, sys_err = dev.system_status()
+    p = dev.product or dev.request_product_id()
     where = f"i2c-{dev.bus_number} @0x{dev.address:02x}"
-    data = {"bus": dev.bus_number, "address": dev.address, "self_test": st, "sys_status": sys_status, "sys_err": sys_err}
-    failed = [k for k, v in st.items() if not v]
-    if failed:
-        return Result(FAIL, f"BNO055 on {where}, self test failed: {', '.join(failed)}",
-                      hint="power-cycle the duck; if it stays, replace the BNO055", data=data)
-    if sys_status == 1:
-        return Result(FAIL, f"BNO055 on {where} reports system error {sys_err}", data=data)
+    data = {"bus": dev.bus_number, "address": dev.address, **p}
+    summary = f"BNO08x on {where}, firmware {p['sw_version']}, last reset: {p['reset_cause_name']}"
+    if p["reset_cause"] == 3:
+        return Result(FAIL, summary, data=data,
+                      hint="the chip's watchdog reset it: check the 3V3 supply and I2C wiring; power-cycle and run again")
     if dev.bus_number != 7 and ctx.config.maixcam2["imu_i2c_bus"] is None:
-        return Result(WARN, f"BNO055 found on {where}, docs/WIRING.md puts it on i2c-7", data=data,
+        return Result(WARN, summary + ", docs/WIRING.md puts it on i2c-7", data=data,
                       hint="fine if intended; set maixcam2.imu_i2c_bus to skip the scan")
-    return Result(PASS, f"BNO055 on {where}, self test passed", data=data)
+    return Result(PASS, summary, data=data)
 
 
 def check_imu_calibration(ctx):
     dev = ctx.imu_device()
     path = ctx.config.maixcam2["imu_offsets_path"]
-    loaded = dev.load_offsets(path)
-    dev.mode = bno.NDOF_MODE
+    rec = bno.load_calibration_record(path)
     time.sleep(0.05)
     s = dev.calibration_status()
-    data = {"offsets_file": path, "loaded": loaded, "status": s}
-    if not loaded:
-        return Result(WARN, f"no calibration at {path}; status {s}", hint="python3 scripts/calibrate.py imu", data=data)
-    return Result(PASS, f"calibration loaded; status {s}", data=data)
+    data = {"record_file": path, "record": rec, "status": s}
+    if not rec:
+        return Result(WARN, f"no calibration record at {path}; accuracy {s}", hint="python3 scripts/calibrate.py imu", data=data)
+    if s["accel"] < 2 or s["gyro"] < 2:
+        return Result(WARN, f"calibrated on {rec['bno08x_calibration_saved']}, but accuracy is low now {s}",
+                      hint="keep the duck still a few seconds; if it stays low, python3 scripts/calibrate.py imu", data=data)
+    return Result(PASS, f"calibrated on {rec['bno08x_calibration_saved']}; accuracy {s}", data=data)
 
 
 def _imu_samples(dev, seconds, hz=100):
@@ -496,7 +502,7 @@ def check_imu_still(ctx):
     res, hints = [PASS], []
     if errors:
         res.append(FAIL if errors > 0.01 * (len(acc) + errors) else WARN)
-        hints.append(f"{errors} I2C errors: the BNO055 clock-stretches; drop I2C7 to 100 kHz")
+        hints.append(f"{errors} I2C errors: the BNO086 clock-stretches; drop I2C7 to 100 kHz, keep the wires short")
     if abs(g - 9.81) > 0.6:
         res.append(FAIL)
         hints.append("gravity is off: the duck is moving, or the accelerometer needs calibrating")
@@ -527,7 +533,7 @@ def check_imu_upright(ctx):
                       hint=f"z is upside down: set imu_upside_down to {str(not ctx.config.imu_upside_down).lower()} in duck_config.json")
     if z < 8.5:
         return Result(FAIL if z < 6 else WARN, summary, data=data,
-                      hint="the duck is not upright and level, or the BNO055 is mounted on its side (axis remap)")
+                      hint="the duck is not upright and level, or the BNO086 is mounted on its side (set maixcam2.imu_axis_remap)")
     if abs(x) > 1.5 or abs(y) > 1.5:
         return Result(WARN, summary, hint="tilted more than ~9 degrees: check the surface, or the IMU mounting", data=data)
     return Result(PASS, summary, data=data)
@@ -573,7 +579,7 @@ def check_imu_axes(ctx):
     status = worst(res)
     return Result(status, "IMU axes match the policy frame (x forward, y left, z up)" if status == PASS else "IMU axes do not match the policy frame",
                   details=details, data=data,
-                  hint="check the BNO055 orientation against the Open Duck Mini build guide, and imu_upside_down")
+                  hint="check the BNO086 orientation against the Open Duck Mini build guide, imu_upside_down and imu_axis_remap")
 
 
 # ============================================================ feet
@@ -888,8 +894,8 @@ CHECKS = [
     Check("servo.power", "servo", check_servo_power, "voltage, temperature, error flags"),
     Check("servo.pose", "servo", check_servo_pose, "positions and encoder wrap"),
     Check("servo.timing", "servo", check_servo_timing, "bus read latency and errors"),
-    Check("imu.chip", "imu", check_imu_chip, "BNO055 present and self test"),
-    Check("imu.calibration", "imu", check_imu_calibration, "calibration offsets"),
+    Check("imu.chip", "imu", check_imu_chip, "BNO086 answers (product ID, reset cause)"),
+    Check("imu.calibration", "imu", check_imu_calibration, "calibration saved, accuracy"),
     Check("imu.still", "imu", check_imu_still, "gravity, gyro bias, I2C errors"),
     Check("imu.upright", "imu", check_imu_upright, "upright reads +z"),
     Check("imu.axes", "imu", check_imu_axes, "tilt and turn signs", interactive=True),

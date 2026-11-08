@@ -1,4 +1,4 @@
-"""Print IMU data, or calibrate with --calibrate (saves maixcam2.imu_offsets_path)."""
+"""Print IMU data, or calibrate with --calibrate (saved on the BNO086, recorded in maixcam2.imu_offsets_path)."""
 
 import argparse
 import time
