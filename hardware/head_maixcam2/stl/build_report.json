@@ -1,0 +1,108 @@
+{
+  "params": {
+    "stretch_at": 110.0,
+    "extend": 18.0,
+    "plug_gap": 11.0,
+    "pad": 1.5,
+    "boss_below": 1.0,
+    "tripod_hole": 6.6,
+    "fence_h": 6.0,
+    "fence_t": 2.0,
+    "clear": 0.3,
+    "win_start": 12.0,
+    "win_h_half": 45.0,
+    "win_v_half": 31.0,
+    "switch_slot": true
+  },
+  "board_in_head": {
+    "front_cover_x": 124.0,
+    "screen_x": 102.75,
+    "bottom_z": 114.21,
+    "top_z": 165.07,
+    "lens_front": [
+      129.79,
+      0.0,
+      154.07
+    ],
+    "clearance_to_roll_mount_mm": 2.75,
+    "tripod_screw_engagement_mm": 4.03,
+    "tripod_nut_depth_mm": 4.56,
+    "ceiling_z": 166.11,
+    "top_clearance_mm": 1.04
+  },
+  "parts": {
+    "head_maixcam2": {
+      "watertight": true,
+      "volume_cm3": 258.3,
+      "stock_volume_cm3": 229.4,
+      "pla_g_solid": 320.3
+    },
+    "head_bot_sheet_maixcam2": {
+      "watertight": true,
+      "volume_cm3": 78.3,
+      "stock_volume_cm3": 65.9,
+      "pla_g_solid": 97.1
+    }
+  },
+  "overlap_mm3": {
+    "head (new)": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "bottom sheet (new)": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "head_roll_mount": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "head_yaw_to_roll": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "head_pitch_to_yaw": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "speaker_stand": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "flash_light_module": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "flash_reflector_interface": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "left_eye (moved)": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "right_eye (moved)": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "bulb (moved)": {
+      "board": 0.0,
+      "lens": 0.0,
+      "header_plugs_8mm": 0.0
+    }
+  },
+  "fov_blocked_fraction": {
+    "16:9 (86.7 x 55.8 deg)": 0.0,
+    "4:3 (70 x 55.8 deg)": 0.0
+  }
+}
