@@ -83,22 +83,34 @@ def _cut(m: trimesh.Trimesh, keep_y_below: float) -> trimesh.Trimesh:
     return to_trimesh(to_manifold(m).trim_by_plane([0, -1, 0], -keep_y_below))
 
 
-def previews(out: Path, head, sheet, board, eyes, flash, neck, pl):
+def previews(out: Path, layout, head, sheet, board, eyes, flash, neck, cam=None, cap=None):
     out.mkdir(parents=True, exist_ok=True)
     print("rendering previews")
-    assembled = [(head, GREY), (sheet, SHEET), (board, BOARD)] + [(e, EYE) for e in eyes] + [(f, FLASH) for f in flash]
+    extra = [(e, EYE) for e in eyes] + [(f, FLASH) for f in flash]
+    if cam is not None:
+        extra += [(cam, BOARD)]
+    if cap is not None:
+        extra += [(cap, NECK)]
+    assembled = [(head, GREY), (sheet, SHEET), (board, BOARD)] + extra
     sheet_of([
         render(assembled, 25, 18, label="front, 3/4"),
         render(assembled, 0, 4, label="face"),
-    ], 2, out / "head_front.png")
+    ], 2, out / f"{layout}_front.png")
     cut = [(_cut(head, 0.0), GREY), (_cut(sheet, 0.0), SHEET), (board, BOARD)] + [(n, NECK) for n in neck] \
         + [(_cut(e, 0.0), EYE) for e in eyes]
+    if cam is not None:
+        cut += [(cam, BOARD), (_cut(cap, 0.0), NECK)]
     sheet_of([
-        render(cut, 90, 8, label="cut at the centre line, seen from the left (y < 0 half)"),
+        render(cut, 90, 8, label="cut at the centre line, seen from the left"),
         render(cut, 60, 35, label="same cut, from above"),
-    ], 2, out / "head_cutaway.png")
+    ], 2, out / f"{layout}_cutaway.png")
     sheet_of([
         render([(sheet, SHEET)], 30, 40, label="bottom sheet with cradle"),
         render([(sheet, SHEET), (board, BOARD)], 30, 40, label="with the MaixCAM2"),
         render([(sheet, SHEET)], 20, -45, label="underside: tripod screw boss, TF card slot"),
-    ], 3, out / "bottom_sheet.png")
+    ], 3, out / f"{layout}_bottom_sheet.png")
+    if cam is not None:
+        sheet_of([
+            render([(head, GREY), (cam, BOARD), (cap, NECK)], -150, 30, label="camera pod from behind, with its cap"),
+            render([(head, GREY), (cam, BOARD)], -150, 30, label="cap off: camera module and cable slot"),
+        ], 2, out / f"{layout}_pod.png")

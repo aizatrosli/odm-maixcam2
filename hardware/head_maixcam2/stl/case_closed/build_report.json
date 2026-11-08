@@ -1,47 +1,57 @@
 {
   "params": {
+    "layout": "case_closed",
     "stretch_at": 110.0,
     "extend": 18.0,
     "plug_gap": 11.0,
+    "plug_depth": 8.0,
+    "lip": 1.0,
+    "lip_window": [
+      53.0,
+      40.0
+    ],
     "pad": 1.5,
     "boss_below": 1.0,
     "tripod_hole": 6.6,
     "fence_h": 6.0,
     "fence_t": 2.0,
     "clear": 0.3,
+    "pod_wall": 2.0,
+    "pod_fpc_room": 4.0,
     "win_start": 12.0,
     "win_h_half": 45.0,
     "win_v_half": 31.0,
     "switch_slot": true
   },
+  "layout": "case_closed",
   "board_in_head": {
-    "front_cover_x": 124.0,
-    "screen_x": 102.75,
+    "board_x": [
+      102.75,
+      124.0
+    ],
     "bottom_z": 114.21,
     "top_z": 165.07,
+    "ceiling_z": 166.11,
+    "top_clearance_mm": 1.04,
+    "tripod_screw_engagement_mm": 4.03,
+    "tripod_nut_depth_mm": 4.56,
     "lens_front": [
       129.79,
       0.0,
       154.07
     ],
-    "clearance_to_roll_mount_mm": 2.75,
-    "tripod_screw_engagement_mm": 4.03,
-    "tripod_nut_depth_mm": 4.56,
-    "ceiling_z": 166.11,
-    "top_clearance_mm": 1.04
+    "clearance_to_roll_mount_mm": 2.75
   },
   "parts": {
     "head_maixcam2": {
       "watertight": true,
       "volume_cm3": 258.3,
-      "stock_volume_cm3": 229.4,
-      "pla_g_solid": 320.3
+      "stock_volume_cm3": 229.4
     },
     "head_bot_sheet_maixcam2": {
       "watertight": true,
       "volume_cm3": 78.3,
-      "stock_volume_cm3": 65.9,
-      "pla_g_solid": 97.1
+      "stock_volume_cm3": 65.9
     }
   },
   "overlap_mm3": {

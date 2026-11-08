@@ -1,0 +1,127 @@
+{
+  "params": {
+    "layout": "screen_face",
+    "stretch_at": 110.0,
+    "extend": 12.0,
+    "plug_gap": 11.0,
+    "plug_depth": 8.0,
+    "lip": 1.0,
+    "lip_window": [
+      53.0,
+      40.0
+    ],
+    "pad": 1.5,
+    "boss_below": 1.0,
+    "tripod_hole": 6.6,
+    "fence_h": 6.0,
+    "fence_t": 2.0,
+    "clear": 0.3,
+    "pod_wall": 2.0,
+    "pod_fpc_room": 4.0,
+    "win_start": 12.0,
+    "win_h_half": 45.0,
+    "win_v_half": 31.0,
+    "switch_slot": true
+  },
+  "layout": "screen_face",
+  "board_in_head": {
+    "board_x": [
+      109.75,
+      131.0
+    ],
+    "bottom_z": 114.21,
+    "top_z": 165.07,
+    "ceiling_z": 166.11,
+    "top_clearance_mm": 1.04,
+    "tripod_screw_engagement_mm": 4.03,
+    "tripod_nut_depth_mm": 4.56,
+    "lens_front": [
+      129.6,
+      0.0,
+      177.71
+    ],
+    "screen_glass_x": 131.0,
+    "screen_centre_yz": [
+      0.0,
+      139.13
+    ],
+    "visible_window_mm": [
+      53.0,
+      40.0
+    ],
+    "active_area_mm": [
+      48.96,
+      36.72
+    ],
+    "header_plugs_end_x": 101.75,
+    "camera_cable_path_mm": 61.7
+  },
+  "parts": {
+    "head_maixcam2_screen": {
+      "watertight": true,
+      "volume_cm3": 247.4,
+      "stock_volume_cm3": 229.4
+    },
+    "head_bot_sheet_maixcam2": {
+      "watertight": true,
+      "volume_cm3": 74.7,
+      "stock_volume_cm3": 65.9
+    },
+    "camera_pod_cap": {
+      "watertight": true,
+      "volume_cm3": 1.7
+    }
+  },
+  "overlap_mm3": {
+    "head (new)": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "bottom sheet (new)": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "head_roll_mount": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "head_yaw_to_roll": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "head_pitch_to_yaw": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "speaker_stand": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "flash_light_module": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "flash_reflector_interface": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    },
+    "camera pod cap": {
+      "board": 0.0,
+      "camera module": 0.0,
+      "header_plugs_8mm": 0.0
+    }
+  },
+  "fov_blocked_fraction": {
+    "16:9 (86.7 x 55.8 deg)": 0.0,
+    "4:3 (70 x 55.8 deg)": 0.0
+  },
+  "screen_active_area_fully_visible": true
+}

@@ -37,7 +37,7 @@ The full pin table, connector map and power layout are in [docs/WIRING.md](docs/
 
 ## Head
 
-The MaixCAM2 goes in the head, behind the face, with the lens looking out between the eyes. [hardware/head_maixcam2](hardware/head_maixcam2/README.md) has the printable head and bottom sheet that replace the upstream `head.stl` and `head_bot_sheet.stl` (the head is 18 mm longer at the front), the build script, and the fit checks.
+[hardware/head_maixcam2](hardware/head_maixcam2/README.md) has printable heads for the MaixCAM2, with their build script and fit checks. In the default layout, the MaixCAM2 screen is the duck's face and the camera module sits in a pod on top of the head. The other layout keeps the board in its case behind the stock eyes.
 
 ## Setup on the MaixCAM2
 
