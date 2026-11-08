@@ -1,6 +1,6 @@
 # Bill of materials: what changes from the v2 BOM
 
-Start from the [Open Duck Mini v2 BOM](https://docs.google.com/spreadsheets/d/1gq4iWWHEJVgAA_eemkTEsshXqrYlFxXAPwO515KpCJc/edit?usp=sharing) (linked from the [Open_Duck_Mini README](https://github.com/apirrone/Open_Duck_Mini/tree/v2#bom)). Everything on it stays (servos, servo driver board, battery, BMS, UBEC, foot switches, printed parts, screws) except the lines below.
+The [wiring diagram](WIRING.md#the-whole-duck) shows where every part connects. Start from the [Open Duck Mini v2 BOM](https://docs.google.com/spreadsheets/d/1gq4iWWHEJVgAA_eemkTEsshXqrYlFxXAPwO515KpCJc/edit?usp=sharing) (linked from the [Open_Duck_Mini README](https://github.com/apirrone/Open_Duck_Mini/tree/v2#bom)). Everything on it stays (servos, servo driver board, battery, BMS, UBEC, foot switches, printed parts, screws) except the lines below.
 
 | v2 BOM | This build | Qty | Notes |
 |---|---|---|---|
@@ -9,9 +9,13 @@ Start from the [Open Duck Mini v2 BOM](https://docs.google.com/spreadsheets/d/1g
 | | Qwiic / STEMMA QT to female Dupont cable, 100 to 150 mm | 1 | Only for a board with a Qwiic connector; otherwise solder header pins. Keep the I2C wires short. |
 | | 10 kΩ resistor | 2 | Foot switch pull-ups from B20 and B21 to 3V3 (`maix.gpio` does not turn on an internal pull-up). |
 | | Female-female Dupont jumpers | ~10 | MaixCAM2 headers to the IMU, feet, antenna servos and LEDs. |
+| Pi camera cable | **22-pin camera flat cable, about 100 mm** | 1 | Only for the `screen_face` head, where the camera module moves to a pod on the head top. Check the stock cable's pitch (most likely 0.5 mm) and whether the contacts are on the same side at both ends, and buy the same type. |
+| | Right-angle female Dupont plugs | ~10 | The header plugs point back into the head with about 8 mm before the neck. |
+| Eye LEDs, projector LED (bulb) | not needed with the `screen_face` head | 0 | The screen is the face. Keep them for the `case_closed` head. |
 | MAX98357A amplifier + speaker | not needed | 0 | Onboard amplifier and speaker. |
 | Pi camera, microphone | not needed | 0 | Onboard. |
-| UBEC | UBEC rated **3 A or more** | 1 | The MaixCAM2 draws more than the Pi with the NPU and camera running. |
+| UBEC | **V752-755 5 V buck**, or a UBEC rated **3 A or more** | 1 | The MaixCAM2 draws more than the Pi with the NPU and camera running. See [POWER.md](POWER.md). |
+| | 470 µF 10 V+ capacitor | 1 | Across the MaixCAM2 5V and GND pins. |
 
 ## Software dependencies for the BNO086
 
