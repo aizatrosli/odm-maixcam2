@@ -15,6 +15,7 @@ SCENARIOS=${SCENARIOS:-"nominal faults disconnect extreme rate chaos soak"}
 PY=${PYTHON:-python3}
 FPS=${FPS:-30}
 OUT=${OUT:-$(mktemp -d "${TMPDIR:-/tmp}/duck_stress.XXXXXX")}
+mkdir -p "$OUT" || exit 1
 FEED=$OUT/feed
 export UBSAN_OPTIONS=${UBSAN_OPTIONS:-print_stacktrace=1:halt_on_error=0}
 export ASAN_OPTIONS=${ASAN_OPTIONS:-detect_leaks=1}

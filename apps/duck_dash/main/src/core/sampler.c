@@ -209,7 +209,7 @@ static void sample_bus(dash_sampler *s, double now)
         snprintf(w->bus_msg, sizeof w->bus_msg, "no servo answers (7.4V on driver?)");
     } else if (found < DASH_NJ) {
         w->bus_st = ST_FAIL;
-        snprintf(w->bus_msg, sizeof w->bus_msg, "missing ID %s", missing);
+        snprintf(w->bus_msg, sizeof w->bus_msg, "missing ID %.52s", missing);
     } else if (errbits || hot >= 55) {
         w->bus_st = ST_WARN;
         snprintf(w->bus_msg, sizeof w->bus_msg, "%s", hot >= 55 ? "a servo runs hot" : "servo status error");
@@ -349,7 +349,7 @@ static void check_models(dash_sampler *s)
     } else if (ends_with(c->policy_path, ".mud")) {
         if (!mud_model_ok(c->policy_path, miss, sizeof miss)) {
             w->npu_st = ST_FAIL;
-            snprintf(w->npu_msg, sizeof w->npu_msg, "%s missing", miss);
+            snprintf(w->npu_msg, sizeof w->npu_msg, "%.55s missing", miss);
         } else if (s->plat && s->plat->npu_probe) {
             char msg[DASH_STR] = "";
             float lm = 0, im = 0;
@@ -373,7 +373,7 @@ static void check_models(dash_sampler *s)
         snprintf(w->vis_msg, sizeof w->vis_msg, "%s not found", base(c->vision_model));
     } else if (ends_with(c->vision_model, ".mud") && !mud_model_ok(c->vision_model, miss, sizeof miss)) {
         w->vis_st = ST_FAIL;
-        snprintf(w->vis_msg, sizeof w->vis_msg, "%s missing", miss);
+        snprintf(w->vis_msg, sizeof w->vis_msg, "%.55s missing", miss);
     } else {
         w->vis_st = ST_OK;
         snprintf(w->vis_msg, sizeof w->vis_msg, "%s", base(c->vision_model));
