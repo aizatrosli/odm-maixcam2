@@ -165,6 +165,7 @@ void dash_sim_fill(dash_snapshot *s, const char *faults, double t)
         s->loop_p99_ms = 9.6f;
         s->policy_ms = 0.31f;
         s->overruns = 0;
+        s->policy_steps = (int)(t * 50);
         s->cmd[0] = 0.12f; s->cmd[2] = (float)(0.3 * sin(t * 0.4));
         s->det_fps = 24.5f;
     }

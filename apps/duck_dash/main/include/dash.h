@@ -97,6 +97,7 @@ typedef struct {
     int paused;
     float loop_mean_ms, loop_p99_ms, policy_ms;
     int overruns;
+    int policy_steps; /* policy steps since walk.py started, -1 unknown */
     float cmd[7];
     float det_fps;
     int screen_busy; /* the vision process draws on the screen */

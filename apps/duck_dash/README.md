@@ -86,6 +86,7 @@ Options (`./duck_dash --help`):
 --no-bus --no-imu --no-feet   leave that hardware alone
 --fps N             screen refresh rate (default 15)
 --page N            start page (0 overview, 1 servo table)
+--stats[=S]         print frame time, sampler rate and memory every S s (default 10)
 ```
 
 To start it at boot next to the walk service, `duck_dash.service` here is a systemd unit (edit the path in `ExecStart`, then `cp duck_dash.service /etc/systemd/system/ && systemctl enable --now duck_dash`). It runs at low priority so it never competes with the 50 Hz loop. The Sipeed launcher also owns the screen, so use this together with `setup_board.sh apply --autostart`, which turns the launcher off.
@@ -112,6 +113,43 @@ python3 tools/pty_duck.py --fault missing:23,hot:24     # prints /dev/pts/N
 ![Probe of the simulated servo bus, no IMU or feet on this PC](docs/bench_probe.png)
 
 `tests/test_duck_dash.py` (run by `pytest` from the repo root) does this, plus the walk-loop feed and the C unit tests.
+
+### Stress testing with a simulated duck
+
+`tools/duck_stress.py` makes up a whole duck (14 servos with position, velocity, load, voltage, temperature and status bits, the BNO086's gravity and gyro, both feet, a 2S pack that discharges, policy timing and step count, detector fps) and changes it over time. It only needs the Python 3 standard library, so the same file runs on a PC and on the MaixCAM2.
+
+It reaches the dashboard through one of two sinks:
+
+- **feed** (default) rewrites `/dev/shm/duck_telemetry`, the file `walk.py` publishes. A running dashboard switches to it on its own, so this works on the board with the installed app and no other change. The feed also carries optional per-servo lines (`present`, `load`, `temp`, `svolt`, `err`, and `steps`) that `walk.py` does not write; the dashboard shows them when they are there.
+- **bus** serves a Feetech servo bus on a pseudo-terminal, to push the real C servo driver through dropouts, garbage bytes, bad checksums, half packets, replies from the wrong ID and late replies. Start the dashboard with `--servo-port` set to the path it prints.
+
+| Scenario | What it does |
+|---|---|
+| `nominal` | a duck walking, nothing wrong |
+| `faults` | every fault the dashboard knows, 3 s each: servos unplugged (one, a leg, all), hot servos, status error bits, low and critical battery, IMU missing / 0 g / upside down, feet missing, bus errors climbing, loop overruns, slow policy, paused |
+| `disconnect` | the feed goes stale, disappears, comes back, flaps around the 1 s limit, `walk.py` "starting" handovers, clock skew |
+| `extreme` | NaN, inf, huge and negative values, too many or too few numbers, binary garbage, over-long lines and strings, empty files |
+| `rate` | rewrites the feed 1000 times a second |
+| `soak` | `nominal` with rare random faults, for hours |
+| `chaos` | a random one of the above every 1 to 3 s |
+
+```bash
+python3 tools/duck_stress.py -s faults                    # watch the dashboard react
+python3 tools/duck_stress.py -s soak --discharge-min 120  # long run, pack empties over 2 h
+python3 tools/duck_stress.py --sink bus -s chaos          # prints /dev/pts/N
+./build/duck_dash --servo-port /dev/pts/N --no-imu --no-feet --stats
+```
+
+`--stats[=S]` makes the dashboard print, every S seconds (default 10), its frame rate, draw time (mean/max), sampler rate, source switches and resident memory, plus a summary at exit. `make stress` builds the dashboard with AddressSanitizer and UBSan and runs it headless against every scenario on both pages, failing on a crash, a sanitizer report or a stalled sampler; `make stress-host` does the same on the plain build and also fails if memory keeps growing. `STRESS_SECS=60 make stress` runs each one longer.
+
+On the board, copy the two files over and run it while the dashboard is on screen (`walk.py` must not be running, since it writes the same feed):
+
+```bash
+scp tools/duck_stress.py tools/stress.sh root@<board-ip>:/root/
+ssh root@<board-ip> python3 /root/duck_stress.py -s chaos --duration 600
+```
+
+or, with the launcher closed, `sh /root/stress.sh <path to duck_dash> 60` runs the same checks as `make stress-host` on the board.
 
 `make aarch64` cross-compiles the plain C build for the MaixCAM2 (`aarch64-linux-gnu-gcc`, static). It reads all the same hardware but has no camera, NPU test or pin functions, and draws only if there is a usable `/dev/fb0` (`--fb`). It is mainly useful as a headless checker over SSH: `./duck_dash --frames 40 --dump`.
 
