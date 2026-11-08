@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="920" viewBox="0 0 1600 920" font-family="DejaVu Sans, Arial, sans-serif">
+  <rect width="1600" height="920" fill="#ffffff"/>
+  <text x="800" y="44" text-anchor="middle" font-size="28" font-weight="bold">Open Duck Mini v2 + MaixCAM2: power wiring</text>
+  <text x="800" y="72" text-anchor="middle" font-size="15" fill="#555">HX-2S-D20 BMS, USB-C 2S boost charger, V752-755 buck</text>
+
+  <!-- ===== wires (drawn first) ===== -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- pack to BMS -->
+    <path d="M260 200 H360" stroke="#d62728" stroke-width="6"/>
+    <path d="M260 305 H360" stroke="#1f77b4" stroke-width="3"/>
+    <path d="M260 420 H360" stroke="#222" stroke-width="6"/>
+    <!-- P+ to switch, charger BAT+ -->
+    <path d="M580 200 H720" stroke="#d62728" stroke-width="6"/>
+    <path d="M640 200 V560 H580" stroke="#d62728" stroke-width="4"/>
+    <!-- P- and charger GND to ground bus -->
+    <path d="M580 420 H680 V780" stroke="#222" stroke-width="6"/>
+    <path d="M580 640 H680" stroke="#222" stroke-width="4"/>
+    <!-- switched 7.4 V bus -->
+    <path d="M800 200 H880" stroke="#ff7f0e" stroke-width="6"/>
+    <path d="M880 130 V370" stroke="#ff7f0e" stroke-width="6"/>
+    <path d="M880 130 H980" stroke="#ff7f0e" stroke-width="6"/>
+    <path d="M880 370 H980" stroke="#ff7f0e" stroke-width="4"/>
+    <!-- servo board to servos (power + data on the bus cable) -->
+    <path d="M1260 140 H1320" stroke="#ff7f0e" stroke-width="6"/>
+    <path d="M1260 175 H1320" stroke="#222" stroke-width="6"/>
+    <path d="M1260 205 H1320" stroke="#2ca02c" stroke-width="3"/>
+    <!-- servo board GND and buck IN- to ground bus -->
+    <path d="M980 190 H930 V780" stroke="#222" stroke-width="6"/>
+    <path d="M980 440 H930" stroke="#222" stroke-width="4"/>
+    <!-- 5 V rail -->
+    <path d="M1220 370 H1320" stroke="#e377c2" stroke-width="5"/>
+    <path d="M1270 370 V630 H1320" stroke="#e377c2" stroke-width="4"/>
+    <!-- buck OUT- to MaixCAM2 GND, antenna GND -->
+    <path d="M1220 440 H1320" stroke="#222" stroke-width="5"/>
+    <path d="M1245 440 V780" stroke="#222" stroke-width="4"/>
+    <path d="M1320 670 H1245" stroke="#222" stroke-width="4"/>
+    <!-- ground bus -->
+    <path d="M680 780 H1245" stroke="#222" stroke-width="6"/>
+    <!-- USB data -->
+    <path d="M1180 230 V290 H1440 V310" stroke="#2ca02c" stroke-width="3" stroke-dasharray="8 6"/>
+  </g>
+  <!-- junction dots -->
+  <g fill="#222">
+    <circle cx="640" cy="200" r="7" fill="#d62728"/>
+    <circle cx="680" cy="640" r="6"/>
+    <circle cx="880" cy="130" r="7" fill="#ff7f0e"/>
+    <circle cx="880" cy="200" r="7" fill="#ff7f0e"/>
+    <circle cx="930" cy="440" r="6"/>
+    <circle cx="930" cy="780" r="7"/>
+    <circle cx="1270" cy="370" r="6" fill="#e377c2"/>
+    <circle cx="1245" cy="440" r="6"/>
+    <circle cx="1245" cy="670" r="6"/>
+    <circle cx="680" cy="780" r="7"/>
+  </g>
+
+  <!-- ===== battery pack ===== -->
+  <rect x="40" y="130" width="220" height="340" rx="12" fill="#f4f4f4" stroke="#444" stroke-width="2"/>
+  <text x="150" y="122" text-anchor="middle" font-size="15" font-weight="bold">2S pack: 2 x 18650 (20 A+)</text>
+  <rect x="80" y="165" width="140" height="115" rx="10" fill="#cfe3f7" stroke="#1f77b4" stroke-width="2"/>
+  <text x="150" y="215" text-anchor="middle" font-size="16" font-weight="bold">Cell 2</text>
+  <text x="150" y="238" text-anchor="middle" font-size="13">3.0 to 4.2 V</text>
+  <text x="96" y="190" font-size="16" font-weight="bold" fill="#d62728">+</text>
+  <text x="96" y="272" font-size="18" font-weight="bold">-</text>
+  <rect x="80" y="330" width="140" height="115" rx="10" fill="#cfe3f7" stroke="#1f77b4" stroke-width="2"/>
+  <text x="150" y="380" text-anchor="middle" font-size="16" font-weight="bold">Cell 1</text>
+  <text x="150" y="403" text-anchor="middle" font-size="13">3.0 to 4.2 V</text>
+  <text x="96" y="355" font-size="16" font-weight="bold" fill="#d62728">+</text>
+  <text x="96" y="437" font-size="18" font-weight="bold">-</text>
+  <path d="M220 200 H260 M150 280 V330 M150 305 H260 M220 420 H260" stroke="#555" stroke-width="3" fill="none"/>
+  <text x="150" y="494" text-anchor="middle" font-size="12" fill="#555">Cell 2 + = pack top (8.4 V full)</text>
+  <text x="150" y="510" text-anchor="middle" font-size="12" fill="#555">middle link = Cell1+ / Cell2-</text>
+
+  <!-- ===== BMS ===== -->
+  <rect x="360" y="140" width="220" height="320" rx="12" fill="#dfe8fb" stroke="#2848a8" stroke-width="2"/>
+  <text x="470" y="250" text-anchor="middle" font-size="19" font-weight="bold">HX-2S-D20</text>
+  <text x="470" y="272" text-anchor="middle" font-size="14">2S protection BMS</text>
+  <text x="485" y="300" text-anchor="middle" font-size="12">~13 A cont / 20 A trip</text>
+  <text x="485" y="318" text-anchor="middle" font-size="12">cut-off 4.25-4.35 V/cell</text>
+  <text x="485" y="336" text-anchor="middle" font-size="12">cut-off 2.5-3.0 V/cell</text>
+  <text x="485" y="354" text-anchor="middle" font-size="12">no balancing</text>
+  <g font-size="15" font-weight="bold">
+    <rect x="360" y="185" width="50" height="30" fill="#bbb" stroke="#555"/><text x="385" y="206" text-anchor="middle">B+</text>
+    <rect x="360" y="290" width="50" height="30" fill="#bbb" stroke="#555"/><text x="385" y="311" text-anchor="middle">BM</text>
+    <rect x="360" y="405" width="50" height="30" fill="#bbb" stroke="#555"/><text x="385" y="426" text-anchor="middle">B-</text>
+    <rect x="530" y="185" width="50" height="30" fill="#bbb" stroke="#555"/><text x="555" y="206" text-anchor="middle">P+</text>
+    <rect x="530" y="405" width="50" height="30" fill="#bbb" stroke="#555"/><text x="555" y="426" text-anchor="middle">P-</text>
+  </g>
+  <text x="470" y="160" text-anchor="middle" font-size="12" fill="#2848a8">P+ is the same copper as B+</text>
+
+  <!-- ===== charger ===== -->
+  <rect x="360" y="520" width="220" height="170" rx="12" fill="#dff3df" stroke="#2c8a2c" stroke-width="2"/>
+  <text x="448" y="608" text-anchor="middle" font-size="15" font-weight="bold">USB-C 2S charger</text>
+  <text x="445" y="630" text-anchor="middle" font-size="11">5 V in, boost to 8.4 V CC/CV</text>
+  <text x="445" y="648" text-anchor="middle" font-size="11">CR = charging, OK = full</text>
+  <g font-size="12" font-weight="bold">
+    <rect x="535" y="545" width="45" height="30" fill="#bbb" stroke="#555"/><text x="557" y="565" text-anchor="middle">BAT</text>
+    <rect x="535" y="625" width="45" height="30" fill="#bbb" stroke="#555"/><text x="557" y="645" text-anchor="middle">GND</text>
+    <rect x="345" y="532" width="45" height="46" rx="8" fill="#999" stroke="#555"/><text x="367" y="560" text-anchor="middle" fill="#fff">C</text>
+  </g>
+  <text x="300" y="560" text-anchor="end" font-size="13">USB-C 5 V</text>
+  <text x="300" y="577" text-anchor="end" font-size="13">(charge here,</text>
+  <text x="300" y="594" text-anchor="end" font-size="13">switch OFF)</text>
+  <text x="470" y="712" text-anchor="middle" font-size="12" fill="#555">IN / GND pads = same 5 V input, leave open</text>
+
+  <!-- ===== switch ===== -->
+  <circle cx="725" cy="200" r="6" fill="#fff" stroke="#222" stroke-width="3"/>
+  <circle cx="795" cy="200" r="6" fill="#fff" stroke="#222" stroke-width="3"/>
+  <path d="M729 196 L790 168" stroke="#222" stroke-width="4"/>
+  <text x="760" y="150" text-anchor="middle" font-size="14" font-weight="bold">Power switch</text>
+  <text x="760" y="236" text-anchor="middle" font-size="12">rated 10 A+ DC</text>
+  <text x="700" y="290" font-size="14" font-weight="bold" fill="#c35f00">7.4 V switched</text>
+  <text x="700" y="308" font-size="12" fill="#c35f00">(6.0 to 8.4 V)</text>
+
+  <!-- ===== servo board ===== -->
+  <rect x="980" y="90" width="280" height="140" rx="12" fill="#fde9d6" stroke="#c35f00" stroke-width="2"/>
+  <text x="1120" y="120" text-anchor="middle" font-size="15" font-weight="bold">Waveshare Bus Servo</text>
+  <text x="1120" y="140" text-anchor="middle" font-size="15" font-weight="bold">Adapter (A)</text>
+  <text x="1120" y="165" text-anchor="middle" font-size="12">DC in = servo voltage</text>
+  <text x="992" y="124" font-size="11">DC+</text>
+  <text x="992" y="208" font-size="11">DC-</text>
+  <text x="1120" y="222" text-anchor="middle" font-size="11">USB-C (data)</text>
+
+  <!-- ===== servos ===== -->
+  <rect x="1320" y="100" width="250" height="130" rx="12" fill="#fde9d6" stroke="#c35f00" stroke-width="2"/>
+  <text x="1445" y="130" text-anchor="middle" font-size="15" font-weight="bold">14 x STS3215 7.4 V</text>
+  <text x="1445" y="152" text-anchor="middle" font-size="12">bus cable: V+, GND, data</text>
+  <text x="1445" y="172" text-anchor="middle" font-size="12">walk ~2-5 A, spikes ~10 A</text>
+  <text x="1445" y="192" text-anchor="middle" font-size="12">stall 2.7 A each (38 A all)</text>
+
+  <!-- ===== buck ===== -->
+  <rect x="980" y="330" width="240" height="150" rx="12" fill="#2b2b2b" stroke="#000" stroke-width="2"/>
+  <text x="1100" y="395" text-anchor="middle" font-size="17" font-weight="bold" fill="#fff">V752-755 buck</text>
+  <text x="1100" y="417" text-anchor="middle" font-size="13" fill="#fff">7.4 V to 5.0-5.1 V</text>
+  <text x="1100" y="437" text-anchor="middle" font-size="12" fill="#ffd27f">measure OUT before use</text>
+  <g font-size="12" font-weight="bold" fill="#fff">
+    <text x="988" y="365">IN+</text><text x="988" y="455">IN-</text>
+    <text x="1212" y="365" text-anchor="end">OUT+</text><text x="1212" y="455" text-anchor="end">OUT-</text>
+  </g>
+
+  <!-- ===== MaixCAM2 ===== -->
+  <rect x="1320" y="310" width="250" height="230" rx="16" fill="#333" stroke="#000" stroke-width="2"/>
+  <text x="1445" y="345" text-anchor="middle" font-size="12" fill="#9fe39f">Type-C = USB host (servo data)</text>
+  <text x="1445" y="400" text-anchor="middle" font-size="20" font-weight="bold" fill="#fff">MaixCAM2</text>
+  <g font-size="12" fill="#fff">
+    <text x="1332" y="374">5V pin (right header)</text>
+    <text x="1332" y="444">GND (right header)</text>
+  </g>
+  <text x="1445" y="480" text-anchor="middle" font-size="12" fill="#ddd">5V pin takes 3.7-5 V</text>
+  <text x="1445" y="498" text-anchor="middle" font-size="12" fill="#ddd">plan ~1.5 A peak</text>
+  <text x="1445" y="516" text-anchor="middle" font-size="12" fill="#ddd">470 uF+ cap across 5V/GND</text>
+
+  <!-- ===== antenna servos ===== -->
+  <rect x="1320" y="600" width="250" height="100" rx="12" fill="#fbe3f2" stroke="#b3438c" stroke-width="2"/>
+  <text x="1445" y="630" text-anchor="middle" font-size="14" font-weight="bold">2 x 9 g antenna servos</text>
+  <text x="1445" y="650" text-anchor="middle" font-size="12">+ eye / projector LEDs (5 V)</text>
+  <text x="1445" y="670" text-anchor="middle" font-size="12">signals from MaixCAM2 pins,</text>
+  <text x="1445" y="688" text-anchor="middle" font-size="12">see WIRING.md</text>
+
+  <text x="1290" y="360" text-anchor="end" font-size="13" font-weight="bold" fill="#b3438c">5 V</text>
+  <text x="805" y="805" text-anchor="middle" font-size="14" font-weight="bold">common GND (P- side only)</text>
+  <text x="310" y="470" text-anchor="middle" font-size="11" fill="#b00">never ground</text>
+  <text x="310" y="484" text-anchor="middle" font-size="11" fill="#b00">a load to B-</text>
+  <text x="1320" y="282" text-anchor="end" font-size="12" fill="#2c8a2c">USB data</text>
+
+  <!-- ===== legend ===== -->
+  <g font-size="13">
+    <line x1="40" y1="860" x2="80" y2="860" stroke="#d62728" stroke-width="6"/><text x="88" y="865">pack + (unswitched)</text>
+    <line x1="260" y1="860" x2="300" y2="860" stroke="#ff7f0e" stroke-width="6"/><text x="308" y="865">7.4 V switched</text>
+    <line x1="450" y1="860" x2="490" y2="860" stroke="#e377c2" stroke-width="6"/><text x="498" y="865">5 V</text>
+    <line x1="560" y1="860" x2="600" y2="860" stroke="#222" stroke-width="6"/><text x="608" y="865">GND</text>
+    <line x1="680" y1="860" x2="720" y2="860" stroke="#1f77b4" stroke-width="3"/><text x="728" y="865">cell midpoint sense</text>
+    <line x1="900" y1="860" x2="940" y2="860" stroke="#2ca02c" stroke-width="3" stroke-dasharray="8 6"/><text x="948" y="865">data</text>
+  </g>
+  <text x="40" y="895" font-size="12" fill="#555">Thick wires (pack, switch, servo board, GND bus): 18 AWG. 5 V rail: 20-22 AWG. BM: any thin wire. Charge with the switch off; the charger and BMS do not balance the cells.</text>
+</svg>

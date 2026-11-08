@@ -9,7 +9,7 @@ Pin names come from Sipeed's [MaixCAM2 pinout](https://wiki.sipeed.com/hardware/
 ## Rules
 
 - **All MaixCAM2 IO is 3.3 V.** Never put 5 V or 7.4 V on a signal pin.
-- **Power goes into the 5V header pin**, which accepts 3.7 to 5 V and is the same rail as the Type-C port. Feed it from the duck's UBEC.
+- **Power goes into the 5V header pin**, which accepts 3.7 to 5 V and is the same rail as the Type-C port. Feed it from the duck's UBEC or 5 V buck (see [POWER.md](POWER.md)).
 - **One common ground** between the battery, UBEC, servo driver board and MaixCAM2.
 - **Do not use `A28`/`A29` (UART0).** That is the Linux console and boot log.
 - **`A2` cannot be used.** Sipeed blocks that hole on purpose so the header can't be plugged in the wrong way.
@@ -88,13 +88,15 @@ The header silkscreen shows the same pins in two rows, so match by name, not by 
 ## Power
 
 ```
-2x 18650 -> BMS -> power switch -> 7.4 V -+-> servo driver board (DC in)
-                                          |
-                                          +-> UBEC -> 5 V -+-> MaixCAM2 5V pin
-                                                           +-> antenna servos
+2x 18650 -> BMS (B+/BM/B-) -> P+/P- -+-> USB-C 2S charger (BAT/GND, unswitched)
+                                     |
+                                     +-> power switch -> 7.4 V -+-> servo driver board (DC in)
+                                                                |
+                                                                +-> UBEC or 5 V buck -> 5 V -+-> MaixCAM2 5V pin
+                                                                                             +-> antenna servos
 ```
 
-This is the v2 layout with the Pi swapped out. The MaixCAM2 draws more than a Pi Zero 2W when the NPU and camera run, so use a UBEC rated 3 A or more. The battery version of the MaixCAM2 has its own charger. Don't fit a cell to it inside the duck, because the duck already has a pack.
+This is the v2 layout with the Pi swapped out. The MaixCAM2 draws more than a Pi Zero 2W when the NPU and camera run, so use a UBEC or buck rated 3 A or more. [POWER.md](POWER.md) has the full power wiring with an HX-2S-D20 BMS, a USB-C 2S charger and a small buck module, and what to check on each. The battery version of the MaixCAM2 has its own charger. Don't fit a cell to it inside the duck, because the duck already has a pack.
 
 ## Check it
 
