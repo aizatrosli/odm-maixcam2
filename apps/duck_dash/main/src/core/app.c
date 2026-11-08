@@ -39,6 +39,8 @@ static void usage(void)
          "  --frames N          stop after N frames\n"
          "  --snapshot OUT.ppm  save the last frame (with --frames)\n"
          "  --dump              print the last snapshot as text (with --frames)\n"
+         "  --stats[=S]         every S seconds (default 10) print frame times, sampler rate,\n"
+         "                      source switches and memory to stderr; a summary at exit\n"
          "\n"
          "Tap the screen to switch pages, tap the title (top left) to exit. The user key\n"
          "or Ctrl-C exits too.");
@@ -67,13 +69,85 @@ static void dump(const dash_snapshot *s)
     printf("battery=%s volt=%.2f pct=%d\n", stw(s->batt_st), s->batt_v, s->batt_pct);
     printf("imu=%s msg=%s acc=%.2f,%.2f,%.2f roll=%.1f pitch=%.1f\n", stw(s->imu_st), s->imu_msg, s->acc[0], s->acc[1],
            s->acc[2], s->roll, s->pitch);
-    printf("feet=%s left=%d right=%d\n", stw(s->feet_st), s->foot[0], s->foot[1]);
+    printf("feet=%s left=%d right=%d msg=%s\n", stw(s->feet_st), s->foot[0], s->foot[1], s->feet_msg);
     printf("camera=%s msg=%s\n", stw(s->cam_st), s->cam_msg);
     printf("policy=%s backend=%s msg=%s\n", stw(s->npu_st), s->backend, s->npu_msg);
     printf("detector=%s msg=%s\n", stw(s->vis_st), s->vis_msg);
-    printf("walk_live=%d mode=%s state=%s loop_ms=%.2f policy_ms=%.2f\n", s->walk_live, s->walk_mode, s->walk_state,
-           s->loop_mean_ms, s->policy_ms);
+    printf("walk_live=%d mode=%s state=%s loop_ms=%.2f policy_ms=%.2f steps=%d bus_errors=%u temp_max=%d\n",
+           s->walk_live, s->walk_mode, s->walk_state, s->loop_mean_ms, s->policy_ms, s->policy_steps, s->bus_errors,
+           s->servo_temp_max);
     printf("config_loaded=%d path=%s\n", s->config_loaded, s->config_path);
+}
+
+/* --stats: how the dashboard holds up (frame time, sampler rate, memory) */
+typedef struct {
+    double t0, win_t0;
+    long frames, win_frames;
+    double draw_sum, draw_max, win_draw_sum, win_draw_max;
+    unsigned seq0, win_seq0;
+    int switches, win_switches, last_source, last_live;
+    long rss0_kb, rss_max_kb;
+} dash_stats;
+
+static long rss_kb(void)
+{
+    long pages = 0, rss = 0;
+    FILE *f = fopen("/proc/self/statm", "r");
+    if (!f) return 0;
+    if (fscanf(f, "%ld %ld", &pages, &rss) != 2) rss = 0;
+    fclose(f);
+    return rss * (sysconf(_SC_PAGESIZE) / 1024);
+}
+
+static void stats_frame(dash_stats *st, const dash_snapshot *s, double draw_ms)
+{
+    if (!st->frames) {
+        st->t0 = st->win_t0 = dash_now();
+        st->seq0 = st->win_seq0 = s->seq;
+        st->last_source = s->source;
+        st->last_live = s->walk_live;
+        st->rss0_kb = st->rss_max_kb = rss_kb();
+    }
+    st->frames++;
+    st->win_frames++;
+    st->draw_sum += draw_ms;
+    st->win_draw_sum += draw_ms;
+    if (draw_ms > st->draw_max) st->draw_max = draw_ms;
+    if (draw_ms > st->win_draw_max) st->win_draw_max = draw_ms;
+    if ((int)s->source != st->last_source || s->walk_live != st->last_live) {
+        st->switches++;
+        st->win_switches++;
+        st->last_source = s->source;
+        st->last_live = s->walk_live;
+    }
+}
+
+static void stats_report(dash_stats *st, const dash_snapshot *s, FILE *out, int final)
+{
+    double now = dash_now();
+    long rss = rss_kb();
+    if (rss > st->rss_max_kb) st->rss_max_kb = rss;
+    if (final) {
+        double dt = now - st->t0;
+        fprintf(out,
+                "stats_total seconds=%.1f frames=%ld fps=%.1f draw_ms_mean=%.2f draw_ms_max=%.2f sampler_hz=%.1f "
+                "source_switches=%d rss_kb=%ld rss_start_kb=%ld rss_max_kb=%ld\n",
+                dt, st->frames, dt > 0 ? st->frames / dt : 0, st->frames ? st->draw_sum / st->frames : 0, st->draw_max,
+                dt > 0 ? (s->seq - st->seq0) / dt : 0, st->switches, rss, st->rss0_kb, st->rss_max_kb);
+        return;
+    }
+    double dt = now - st->win_t0;
+    fprintf(out,
+            "stats t=%.0fs fps=%.1f draw_ms=%.2f/%.2f sampler_hz=%.1f switches=%d source=%s%s rss_kb=%ld\n",
+            now - st->t0, dt > 0 ? st->win_frames / dt : 0, st->win_frames ? st->win_draw_sum / st->win_frames : 0,
+            st->win_draw_max, dt > 0 ? (s->seq - st->win_seq0) / dt : 0, st->win_switches,
+            s->source == SRC_SIM ? "sim" : s->source == SRC_FEED ? "feed" : "probe", s->walk_live ? "+walk" : "", rss);
+    fflush(out);
+    st->win_t0 = now;
+    st->win_frames = 0;
+    st->win_draw_sum = st->win_draw_max = 0;
+    st->win_seq0 = s->seq;
+    st->win_switches = 0;
 }
 
 static void sleep_until(struct timespec *next, long period_ns)
@@ -95,6 +169,7 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
     dash_options opt = {0};
     const char *config_path = NULL, *snapshot = NULL, *servo_port = NULL;
     int fps = 15, frames = -1, page = 0, do_dump = 0, imu_bus = -2;
+    double stats_every = 0;
     opt.camera_mode = 1;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -112,6 +187,8 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
         else if (!strcmp(a, "--frames")) frames = atoi(NEXT);
         else if (!strcmp(a, "--snapshot")) snapshot = NEXT;
         else if (!strcmp(a, "--dump")) do_dump = 1;
+        else if (!strcmp(a, "--stats")) stats_every = 10;
+        else if (!strncmp(a, "--stats=", 8)) stats_every = atof(a + 8) > 0 ? atof(a + 8) : 10;
         else if (!strcmp(a, "--sim")) opt.sim_faults = "";
         else if (!strncmp(a, "--sim=", 6)) opt.sim_faults = a + 6;
         else if (!strcmp(a, "-h") || !strcmp(a, "--help")) {
@@ -158,6 +235,7 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
         dash_sampler_set_camera(smp, ST_UNKNOWN, "no camera access in this build", 0);
 
     dash_snapshot snap;
+    dash_stats stats = {0};
     const long period = 1000000000L / fps;
     struct timespec next;
     clock_gettime(CLOCK_MONOTONIC, &next);
@@ -206,9 +284,14 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
             page = (page + 1) % dash_ui_pages();
         }
 
+        double t_draw = dash_now();
         dash_ui_draw(&canvas, &snap, page, have_cam ? cam : NULL, CAM_W, CAM_H);
         /* while the vision process draws its eyes or boxes, leave the screen to it */
         if (have_display && !snap.screen_busy) plat->display_show(plat->ctx, canvas.px, CANVAS_W, CANVAS_H);
+        if (stats_every > 0) {
+            stats_frame(&stats, &snap, (dash_now() - t_draw) * 1000);
+            if (dash_now() - stats.win_t0 >= stats_every) stats_report(&stats, &snap, stderr, 0);
+        }
         if (frames >= 0 && f == frames - 1) break;
         sleep_until(&next, period);
     }
@@ -216,6 +299,10 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
     if (do_dump) {
         dash_sampler_get(smp, &snap);
         dump(&snap);
+    }
+    if (stats_every > 0 && stats.frames) {
+        dash_sampler_get(smp, &snap);
+        stats_report(&stats, &snap, stdout, 1);
     }
     if (snapshot) {
         dash_sampler_get(smp, &snap);

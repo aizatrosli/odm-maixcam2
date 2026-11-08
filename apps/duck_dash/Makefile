@@ -5,6 +5,9 @@
 #   make test         C unit tests
 #   make aarch64      cross-compiled for the MaixCAM2 without MaixCDK (fbdev only)
 #   make snapshots    PPM screenshots of the simulated duck in build/
+#   make stress       ASan/UBSan build run against every tools/duck_stress.py scenario
+#                     (STRESS_SECS=20 per scenario and page)
+#   make stress-host  the same against the plain build, also checking memory stays flat
 
 CC ?= cc
 CFLAGS ?= -O2 -g
@@ -35,7 +38,19 @@ snapshots: $(BUILD)/duck_dash
 	$(BUILD)/duck_dash --sim=walk --frames 3 --snapshot $(BUILD)/sim_walk.ppm
 	$(BUILD)/duck_dash --sim=hot:24,overload:13 --page 1 --frames 3 --snapshot $(BUILD)/sim_servos.ppm
 
-clean:
-	rm -rf build build-aarch64
+SAN = -fsanitize=address,undefined,float-cast-overflow -fno-omit-frame-pointer
+STRESS_SECS ?= 20
 
-.PHONY: all test aarch64 snapshots clean
+asan:
+	$(MAKE) BUILD=build-asan CFLAGS="-O1 -g $(SAN)" LDFLAGS="$(SAN)" all
+
+stress: asan
+	RSS_CHECK=0 sh tools/stress.sh build-asan/duck_dash $(STRESS_SECS)
+
+stress-host: all
+	sh tools/stress.sh $(BUILD)/duck_dash $(STRESS_SECS)
+
+clean:
+	rm -rf build build-aarch64 build-asan
+
+.PHONY: all test aarch64 snapshots asan stress stress-host clean

@@ -80,7 +80,7 @@ static void status_row(gfx_canvas *c, int x, int y, int w, dash_status st, const
 
 static void bar(gfx_canvas *c, int x, int y, int w, int h, float frac, gfx_color col)
 {
-    if (frac < 0) frac = 0;
+    if (!(frac > 0)) frac = 0; /* also NaN */
     if (frac > 1) frac = 1;
     gfx_fill_rect(c, x, y, w, h, EDGE);
     gfx_fill_rect(c, x, y, (int)(w * frac + 0.5f), h, col);
@@ -227,7 +227,7 @@ static void servo_panel(gfx_canvas *c, const dash_snapshot *s, int x, int y, int
             gfx_fill_rect(c, bx, ry + 18, bw, 2, EDGE);
             float f = (sv->pos - lo) / (hi - lo);
             gfx_color mc = (f < 0.03f || f > 0.97f) ? C_WARN : ACCENT;
-            if (f < 0) f = 0;
+            if (!(f > 0)) f = 0; /* also NaN */
             if (f > 1) f = 1;
             gfx_fill_rect(c, bx + (int)(f * (bw - 10)), ry + 17, 10, 4, mc);
         }
@@ -320,6 +320,8 @@ static void camera_or_walk(gfx_canvas *c, const dash_snapshot *s, int x, int y, 
         gfx_textf(c, &FONT_SMALL, x + 8, yy, TEXT, GFX_ALIGN_LEFT, "vx%+.2f vy%+.2f wz%+.2f", s->cmd[0], s->cmd[1], s->cmd[2]);
         yy += 17;
         if (s->det_fps > 0) gfx_textf(c, &FONT_SMALL, x + 8, yy, TEXT, GFX_ALIGN_LEFT, "detector %.1f fps", s->det_fps);
+        yy += 17;
+        if (s->policy_steps >= 0) gfx_textf(c, &FONT_SMALL, x + 8, yy, DIM, GFX_ALIGN_LEFT, "%d policy steps", s->policy_steps);
         return;
     }
     panel(c, x, y, w, h, "CAMERA");
@@ -372,7 +374,8 @@ static void page_servos(gfx_canvas *c, const dash_snapshot *s)
         } else {
             gfx_textf(c, &FONT_SMALL, col[2], y + 3, TEXT, GFX_ALIGN_LEFT, "%+7.1f", deg(sv->pos));
             gfx_textf(c, &FONT_SMALL, col[3], y + 3, TEXT, GFX_ALIGN_LEFT, "%+5.2f", sv->vel);
-            if (s->walk_live && s->source == SRC_FEED) {
+            /* walk.py's own feed has no per-servo load, voltage or temperature */
+            if (s->source == SRC_FEED && !sv->volt && !sv->temp) {
                 gfx_text(c, &FONT_SMALL, col[4], y + 3, FAINT, GFX_ALIGN_LEFT, "  -");
                 gfx_text(c, &FONT_SMALL, col[5], y + 3, FAINT, GFX_ALIGN_LEFT, "  -");
                 gfx_text(c, &FONT_SMALL, col[6], y + 3, FAINT, GFX_ALIGN_LEFT, " -");

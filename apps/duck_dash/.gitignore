@@ -5,3 +5,4 @@ dist/
 .flash.conf.json
 /CMakeLists.txt
 __pycache__
+build-asan/

@@ -198,3 +198,109 @@ def test_sim_screenshot(dash, tmp_path):
     with open(shot, "rb") as f:
         assert f.read(15).startswith(b"P6\n640 480\n255\n")
     assert os.path.getsize(shot) == 15 + 640 * 480 * 3
+
+
+# ---------------------------------------------------------------- stress tools
+
+
+def write_feed(path, lines):
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def stress_duck(**faults):
+    import random
+
+    from duck_stress import Duck
+
+    d = Duck(random.Random(0))
+    d.step(time.time())
+    for k, v in faults.items():
+        setattr(d, k, v)
+    return d
+
+
+@needs_cc
+def test_feed_with_servo_detail(dash, tmp_path):
+    from duck_stress import feed_lines
+
+    d = stress_duck()
+    d.present[3] = 0  # servo 23 (left_knee)
+    d.temp_override = {4: 72}  # servo 24
+    d.err[12] = 0x20  # servo 13
+    path = str(tmp_path / "feed")
+    write_feed(path, feed_lines(d, time.time()))
+    out = run_dash(dash, "--feed", path, "--camera", "off", "--frames", "2", "--dump", "--servo-port", "/dev/null")
+    lines, servos = parse_dump(out)
+    assert lines["source"]["source"] == "feed"
+    assert lines["bus"]["bus"] == "fail" and lines["bus"]["servos_found"] == "13"
+    assert "missing ID 23" in out
+    assert 23 not in servos and servos[24]["temp"] == "72" and servos[13]["err"] == "32"
+    assert float(servos[20]["volt"]) > 7 and "steps=" in out
+
+
+@needs_cc
+def test_feed_never_shows_non_finite_or_stale_values(dash, tmp_path):
+    from duck_stress import feed_lines
+
+    d = stress_duck(acc=None, feet=None)
+    lines = [ln if not ln.startswith("pos ") else "pos " + " ".join(["nan"] * 14) for ln in feed_lines(d, time.time())]
+    lines += ["volt inf", "temp_max 1e40", "overruns -5", "det_fps nan"]
+    path = str(tmp_path / "feed")
+    write_feed(path, lines)
+    out = run_dash(dash, "--feed", path, "--camera", "off", "--frames", "2", "--dump", "--servo-port", "/dev/null")
+    lines, servos = parse_dump(out)
+    assert lines["bus"]["servos_found"] == "0" and not servos
+    assert lines["battery"]["volt"] == "0.00"
+    assert lines["imu"]["imu"] == "warn" and lines["imu"]["acc"] == "0.00,0.00,0.00"
+    assert lines["feet"]["feet"] == "warn" and lines["feet"]["left"] == "-1"
+    assert "nan" not in out and "inf" not in out
+
+
+def _stress_run(dash, tmp_path, scenario, secs=2.5, *dash_args):
+    path = str(tmp_path / "feed")
+    gen = subprocess.Popen(
+        [sys.executable, os.path.join(APP, "tools", "duck_stress.py"), "-s", scenario, "--feed", path,
+         "--duration", str(secs + 1), "--seed", "1", "-q"]
+    )  # fmt: skip
+    try:
+        time.sleep(0.4)
+        out = run_dash(
+            dash, "--feed", path, "--camera", "off", "--servo-port", "/dev/null", "--no-imu", "--no-feet",
+            "--config", str(tmp_path / "none.json"), "--fps", "30", "--frames", str(int(secs * 30)),
+            "--stats", "--dump", *dash_args,
+        )  # fmt: skip
+    finally:
+        gen.wait(timeout=10)
+    return out
+
+
+@needs_cc
+@pytest.mark.parametrize("scenario", ["nominal", "faults", "disconnect", "extreme", "rate", "chaos"])
+def test_dashboard_survives_stress_scenarios(dash, tmp_path, scenario):
+    out = _stress_run(dash, tmp_path, scenario)
+    total = dict(kv.split("=") for kv in out.split("stats_total ", 1)[1].split()) if "stats_total" in out else {}
+    assert float(total["sampler_hz"]) > 15  # the sampler never stalls on a bad feed
+    assert int(total["frames"]) == 75
+    assert "nan" not in out.lower().replace("nan ", "")
+
+
+@needs_cc
+def test_stress_servo_bus_faults(dash, tmp_path):
+    gen = subprocess.Popen(
+        [sys.executable, os.path.join(APP, "tools", "duck_stress.py"), "--sink", "bus", "-s", "faults", "--duration", "6", "--seed", "1"],
+        stdout=subprocess.PIPE, text=True,
+    )  # fmt: skip
+    try:
+        pty = gen.stdout.readline().strip()
+        out = run_dash(
+            dash, "--servo-port", pty, "--no-imu", "--no-feet", "--camera", "off", "--config", str(tmp_path / "none.json"),
+            "--feed", str(tmp_path / "nofeed"), "--frames", "20", "--fps", "10", "--dump",
+        )  # fmt: skip
+    finally:
+        gen.terminate()
+        gen.wait(timeout=5)
+    lines, servos = parse_dump(out)
+    # the first fault of the cycle is "servo 23 unplugged"; bad checksums and drops never crash the reader
+    assert lines["bus"]["bus"] == "fail" and "missing ID 23" in out
+    assert 23 not in servos and len(servos) >= 11
