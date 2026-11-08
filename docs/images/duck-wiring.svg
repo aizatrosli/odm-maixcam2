@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1290" viewBox="0 0 1800 1290" font-family="DejaVu Sans, Arial, sans-serif">
-<rect width="1800" height="1290" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1345" viewBox="0 0 1800 1345" font-family="DejaVu Sans, Arial, sans-serif">
+<rect width="1800" height="1345" fill="#ffffff"/>
 <text x="900.0" y="40" font-size="28" text-anchor="middle" font-weight="bold" fill="#222">Open Duck Mini v2 + MaixCAM2: full wiring</text>
 <text x="900.0" y="66" font-size="15" text-anchor="middle" font-weight="normal" fill="#555">Every part on the BOM. Pin table: docs/WIRING.md.  Power details: docs/POWER.md.</text>
 <rect x="30" y="100" width="260" height="250" rx="8" fill="#fdecea" stroke="#555" stroke-width="2"/>
@@ -155,10 +155,12 @@
 <text x="1011.0" y="835" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">A8 I2C7_SCL</text>
 <rect x="960" y="859" width="102" height="22" rx="4" fill="#d4e6f6" stroke="#777"/>
 <text x="1011.0" y="875" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">A9 I2C7_SDA</text>
-<rect x="960" y="929" width="78" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
-<text x="999.0" y="945" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">B21 GPIO</text>
-<rect x="960" y="989" width="78" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
-<text x="999.0" y="1005" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">B20 GPIO</text>
+<rect x="960" y="964" width="78" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
+<text x="999.0" y="980" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">B21 GPIO</text>
+<rect x="960" y="1044" width="78" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
+<text x="999.0" y="1060" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">B20 GPIO</text>
+<rect x="960" y="1074" width="38" height="22" rx="4" fill="#ddd" stroke="#777"/>
+<text x="979.0" y="1090" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">GND</text>
 <rect x="420" y="690" width="260" height="210" rx="8" fill="#e8f0fa" stroke="#555" stroke-width="2"/>
 <text x="550.0" y="714" font-size="16" text-anchor="middle" font-weight="bold" fill="#222">BNO086 IMU</text>
 <text x="550.0" y="736" font-size="13" text-anchor="middle" font-weight="normal" fill="#444">SparkFun SEN-22857 or</text>
@@ -179,37 +181,39 @@
 <path d="M680 830 L960 830" fill="none" stroke="#1f77b4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M680 870 L960 870" fill="none" stroke="#1f77b4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="690" y="818" font-size="11" text-anchor="start" fill="#444" stroke="#fff" stroke-width="4" paint-order="stroke">Qwiic to Dupont, short</text>
-<rect x="420" y="920" width="260" height="50" rx="8" fill="#eef7ee" stroke="#555" stroke-width="2"/>
-<text x="550.0" y="944" font-size="15" text-anchor="middle" font-weight="bold" fill="#222">Left foot switch</text>
-<rect x="420" y="990" width="260" height="50" rx="8" fill="#eef7ee" stroke="#555" stroke-width="2"/>
-<text x="550.0" y="1014" font-size="15" text-anchor="middle" font-weight="bold" fill="#222">Right foot switch</text>
-<rect x="650" y="929" width="30" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
-<text x="665.0" y="945" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">NO</text>
-<rect x="650" y="999" width="30" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
-<text x="665.0" y="1015" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">NO</text>
-<rect x="420" y="934" width="38" height="22" rx="4" fill="#ddd" stroke="#777"/>
-<text x="439.0" y="950" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">COM</text>
-<rect x="420" y="1004" width="38" height="22" rx="4" fill="#ddd" stroke="#777"/>
-<text x="439.0" y="1020" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">COM</text>
-<path d="M680 940 L960 940" fill="none" stroke="#2ca02c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M680 1010 L900 1010 L900 1000 L960 1000" fill="none" stroke="#2ca02c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M860 940 L860 918" fill="none" stroke="#9467bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="853" y="894" width="14" height="24" fill="#fff" stroke="#9467bd" stroke-width="2"/>
-<path d="M860 894 L860 758 L860 740" fill="none" stroke="#9467bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="860" cy="740" r="5" fill="#9467bd"/>
-<circle cx="860" cy="940" r="5" fill="#2ca02c"/>
-<path d="M880 1000 L880 978" fill="none" stroke="#9467bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="873" y="954" width="14" height="24" fill="#fff" stroke="#9467bd" stroke-width="2"/>
-<path d="M880 954 L880 758 L880 740" fill="none" stroke="#9467bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="880" cy="740" r="5" fill="#9467bd"/>
-<circle cx="880" cy="1000" r="5" fill="#2ca02c"/>
-<text x="820" y="912" font-size="11" text-anchor="end" fill="#444" stroke="#fff" stroke-width="4" paint-order="stroke">10 kΩ</text>
-<text x="845" y="976" font-size="11" text-anchor="end" fill="#444" stroke="#fff" stroke-width="4" paint-order="stroke">10 kΩ</text>
-<path d="M420 945 L390 945 L390 1015 L420 1015" fill="none" stroke="#222222" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M390 945 L390 1060 L920 1060 L920 780" fill="none" stroke="#222222" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="390" cy="945" r="5" fill="#222222"/>
-<circle cx="920" cy="780" r="5" fill="#222222"/>
-<text x="650" y="1078" font-size="11" text-anchor="middle" fill="#444" stroke="#fff" stroke-width="4" paint-order="stroke">foot COM to MaixCAM2 GND (left header)</text>
+<rect x="420" y="950" width="260" height="50" rx="8" fill="#eef7ee" stroke="#555" stroke-width="2"/>
+<text x="550.0" y="974" font-size="15" text-anchor="middle" font-weight="bold" fill="#222">Left foot switch</text>
+<rect x="420" y="1030" width="260" height="50" rx="8" fill="#eef7ee" stroke="#555" stroke-width="2"/>
+<text x="550.0" y="1054" font-size="15" text-anchor="middle" font-weight="bold" fill="#222">Right foot switch</text>
+<rect x="650" y="964" width="30" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
+<text x="665.0" y="980" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">NO</text>
+<rect x="650" y="1044" width="30" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
+<text x="665.0" y="1060" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">NO</text>
+<rect x="420" y="964" width="38" height="22" rx="4" fill="#ddd" stroke="#777"/>
+<text x="439.0" y="980" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">COM</text>
+<rect x="420" y="1044" width="38" height="22" rx="4" fill="#ddd" stroke="#777"/>
+<text x="439.0" y="1060" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">COM</text>
+<path d="M680 975 L960 975" fill="none" stroke="#2ca02c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M680 1055 L960 1055" fill="none" stroke="#2ca02c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M860 975 L860 955" fill="none" stroke="#9467bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="853" y="931" width="14" height="24" fill="#fff" stroke="#9467bd" stroke-width="2"/>
+<path d="M860 931 L860 916" fill="none" stroke="#9467bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="840" y="896" width="40" height="20" rx="4" fill="#e3d7f3" stroke="#9467bd" stroke-width="2"/>
+<text x="860" y="911" font-size="12" text-anchor="middle" font-weight="bold" fill="#4b2d73">3V3</text>
+<circle cx="860" cy="975" r="5" fill="#2ca02c"/>
+<text x="874" y="948" font-size="11" text-anchor="start" fill="#444" stroke="#fff" stroke-width="4" paint-order="stroke">10 kΩ</text>
+<path d="M860 1055 L860 1075" fill="none" stroke="#9467bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="853" y="1075" width="14" height="24" fill="#fff" stroke="#9467bd" stroke-width="2"/>
+<path d="M860 1099 L860 1112" fill="none" stroke="#9467bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="840" y="1112" width="40" height="20" rx="4" fill="#e3d7f3" stroke="#9467bd" stroke-width="2"/>
+<text x="860" y="1127" font-size="12" text-anchor="middle" font-weight="bold" fill="#4b2d73">3V3</text>
+<circle cx="860" cy="1055" r="5" fill="#2ca02c"/>
+<text x="874" y="1092" font-size="11" text-anchor="start" fill="#444" stroke="#fff" stroke-width="4" paint-order="stroke">10 kΩ</text>
+<text x="725" y="1126" font-size="11" text-anchor="middle" fill="#444" stroke="#fff" stroke-width="4" paint-order="stroke">to the MaixCAM2 3V3 pin</text>
+<path d="M420 975 L395 975 L395 1055 L420 1055" fill="none" stroke="#222222" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M395 1055 L395 1150 L930 1150 L930 1085 L960 1085" fill="none" stroke="#222222" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="395" cy="1055" r="5" fill="#222222"/>
+<text x="650" y="1168" font-size="11" text-anchor="middle" fill="#444" stroke="#fff" stroke-width="4" paint-order="stroke">foot COM to MaixCAM2 GND (left header)</text>
 <rect x="1322" y="719" width="78" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
 <text x="1361.0" y="735" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">A31 PWM7</text>
 <rect x="1330" y="759" width="70" height="22" rx="4" fill="#d6f0d6" stroke="#777"/>
@@ -253,35 +257,33 @@
 <text x="1119.0" y="1105" font-size="13" text-anchor="middle" font-weight="bold" fill="#222">6-pin 1.25 mm</text>
 <rect x="960" y="1150" width="440" height="70" rx="8" fill="#f7f7f7" stroke="#7f7f7f" stroke-width="2" stroke-dasharray="6 4"/>
 <text x="1180.0" y="1174" font-size="14" text-anchor="middle" font-weight="bold" fill="#222">Optional: servo bus on UART4 instead of USB</text>
-<text x="1180.0" y="1196" font-size="13" text-anchor="middle" font-weight="normal" fill="#444">A21 UART4_TX &gt; board RX, A22 UART4_RX &lt; board TX, GND</text>
+<text x="1180.0" y="1196" font-size="13" text-anchor="middle" font-weight="normal" fill="#444">A21 UART4_TX &gt; servo board RX, A22 UART4_RX &lt; TX, GND</text>
 <text x="1180.0" y="1214" font-size="13" text-anchor="middle" font-weight="normal" fill="#444">/dev/ttyS4, check the board's UART is 3.3 V</text>
 <path d="M1110 1111 L1110 1150" fill="none" stroke="#7f7f7f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8 6"/>
-<path d="M960 1185 L870 1185 L870 1120 L820 1120" fill="none" stroke="#7f7f7f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8 6"/>
-<text x="810" y="1124" font-size="11" text-anchor="end" font-weight="normal" fill="#666">to servo board UART header</text>
 <rect x="1500" y="1140" width="270" height="60" rx="8" fill="#f7f7f7" stroke="#555" stroke-width="2" stroke-dasharray="6 4"/>
 <text x="1635.0" y="1164" font-size="15" text-anchor="middle" font-weight="bold" fill="#222">Gamepad</text>
 <text x="1635.0" y="1186" font-size="13" text-anchor="middle" font-weight="normal" fill="#444">BLE, no wire</text>
 <path d="M1400 1070 L1450 1070 L1450 1170 L1500 1170" fill="none" stroke="#7f7f7f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8 6"/>
-<path d="M30 1100 L64 1100" fill="none" stroke="#d62728" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="72" y="1105" font-size="12" text-anchor="start" font-weight="normal" fill="#333">pack + (unswitched)</text>
-<path d="M215 1100 L249 1100" fill="none" stroke="#ff7f0e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="257" y="1105" font-size="12" text-anchor="start" font-weight="normal" fill="#333">7.4 V switched / servo bus</text>
-<path d="M30 1122 L64 1122" fill="none" stroke="#e377c2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="72" y="1127" font-size="12" text-anchor="start" font-weight="normal" fill="#333">5 V rail</text>
-<path d="M215 1122 L249 1122" fill="none" stroke="#9467bd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="257" y="1127" font-size="12" text-anchor="start" font-weight="normal" fill="#333">3.3 V from MaixCAM2</text>
-<path d="M30 1144 L64 1144" fill="none" stroke="#222222" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="72" y="1149" font-size="12" text-anchor="start" font-weight="normal" fill="#333">GND</text>
-<path d="M215 1144 L249 1144" fill="none" stroke="#1f77b4" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="257" y="1149" font-size="12" text-anchor="start" font-weight="normal" fill="#333">I2C / cell balance tap</text>
-<path d="M30 1166 L64 1166" fill="none" stroke="#2ca02c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="72" y="1171" font-size="12" text-anchor="start" font-weight="normal" fill="#333">GPIO / PWM</text>
-<path d="M215 1166 L249 1166" fill="none" stroke="#17becf" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8 6"/>
-<text x="257" y="1171" font-size="12" text-anchor="start" font-weight="normal" fill="#333">USB</text>
-<path d="M30 1188 L64 1188" fill="none" stroke="#8c564b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="72" y="1193" font-size="12" text-anchor="start" font-weight="normal" fill="#333">camera flat cable</text>
-<path d="M215 1188 L249 1188" fill="none" stroke="#7f7f7f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8 6"/>
-<text x="257" y="1193" font-size="12" text-anchor="start" font-weight="normal" fill="#333">optional / wireless</text>
-<text x="30" y="1250" font-size="13" text-anchor="start" font-weight="normal" fill="#333">All MaixCAM2 IO is 3.3 V. One common ground. Do not use A28/A29 (console); A2 is blocked. Dashed boxes are optional or depend on the head layout.</text>
-<text x="30" y="1272" font-size="12" text-anchor="start" font-weight="normal" fill="#777">Generated by tools/wiring/make_wiring_svg.py. Edit that script, not this file.</text>
+<path d="M30 1190 L64 1190" fill="none" stroke="#d62728" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="72" y="1195" font-size="12" text-anchor="start" font-weight="normal" fill="#333">pack + (unswitched)</text>
+<path d="M215 1190 L249 1190" fill="none" stroke="#ff7f0e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="257" y="1195" font-size="12" text-anchor="start" font-weight="normal" fill="#333">7.4 V switched / servo bus</text>
+<path d="M30 1212 L64 1212" fill="none" stroke="#e377c2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="72" y="1217" font-size="12" text-anchor="start" font-weight="normal" fill="#333">5 V rail</text>
+<path d="M215 1212 L249 1212" fill="none" stroke="#9467bd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="257" y="1217" font-size="12" text-anchor="start" font-weight="normal" fill="#333">3.3 V from MaixCAM2</text>
+<path d="M30 1234 L64 1234" fill="none" stroke="#222222" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="72" y="1239" font-size="12" text-anchor="start" font-weight="normal" fill="#333">GND</text>
+<path d="M215 1234 L249 1234" fill="none" stroke="#1f77b4" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="257" y="1239" font-size="12" text-anchor="start" font-weight="normal" fill="#333">I2C / cell balance tap</text>
+<path d="M30 1256 L64 1256" fill="none" stroke="#2ca02c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="72" y="1261" font-size="12" text-anchor="start" font-weight="normal" fill="#333">GPIO / PWM</text>
+<path d="M215 1256 L249 1256" fill="none" stroke="#17becf" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8 6"/>
+<text x="257" y="1261" font-size="12" text-anchor="start" font-weight="normal" fill="#333">USB</text>
+<path d="M30 1278 L64 1278" fill="none" stroke="#8c564b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="72" y="1283" font-size="12" text-anchor="start" font-weight="normal" fill="#333">camera flat cable</text>
+<path d="M215 1278 L249 1278" fill="none" stroke="#7f7f7f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8 6"/>
+<text x="257" y="1283" font-size="12" text-anchor="start" font-weight="normal" fill="#333">optional / wireless</text>
+<text x="30" y="1310" font-size="13" text-anchor="start" font-weight="normal" fill="#333">All MaixCAM2 IO is 3.3 V. One common ground. Do not use A28/A29 (console); A2 is blocked. Dashed boxes are optional or depend on the head layout.</text>
+<text x="30" y="1332" font-size="12" text-anchor="start" font-weight="normal" fill="#777">Generated by tools/wiring/make_wiring_svg.py. Edit that script, not this file.</text>
 </svg>

@@ -15,7 +15,7 @@ import pathlib
 from xml.sax.saxutils import escape
 
 OUT = pathlib.Path(__file__).resolve().parents[2] / "docs" / "images" / "duck-wiring.svg"
-W, H = 1800, 1290
+W, H = 1800, 1345
 
 # wire colours
 BAT = "#d62728"     # pack +, unswitched
@@ -216,7 +216,7 @@ wire([(1135, 625), (1640, 625), (1640, 690)], GND, 3)
 
 # left edge: left header (IMU, feet)
 LP = [("3V3", 740, "#e3d7f3"), ("GND", 780, "#ddd"), ("A8 I2C7_SCL", 830, "#d4e6f6"),
-      ("A9 I2C7_SDA", 870, "#d4e6f6"), ("B21 GPIO", 940, "#d6f0d6"), ("B20 GPIO", 1000, "#d6f0d6")]
+      ("A9 I2C7_SDA", 870, "#d4e6f6"), ("B21 GPIO", 975, "#d6f0d6"), ("B20 GPIO", 1055, "#d6f0d6"), ("GND", 1085, "#ddd")]
 for name, y, c in LP:
     pin(MX, y, name, "l", c)
 
@@ -230,30 +230,48 @@ wire([(680, 830), (MX, 830)], I2C, 3)
 wire([(680, 870), (MX, 870)], I2C, 3)
 label(690, 818, "Qwiic to Dupont, short", size=11)
 
-# feet
-box(420, 920, 260, 50, "Left foot switch", [], fill="#eef7ee", title_size=15)
-box(420, 990, 260, 50, "Right foot switch", [], fill="#eef7ee", title_size=15)
-pin(680, 940, "NO", "r", "#d6f0d6")
-pin(680, 1010, "NO", "r", "#d6f0d6")
-pin(420, 945, "COM", "l", "#ddd")
-pin(420, 1015, "COM", "l", "#ddd")
-wire([(680, 940), (MX, 940)], SIG, 3)
-wire([(680, 1010), (900, 1010), (900, 1000), (MX, 1000)], SIG, 3)
-# pull-ups
-for y, x in [(940, 860), (1000, 880)]:
-    wire([(x, y), (x, y - 22)], V33, 2)
-    out.append(f'<rect x="{x - 7}" y="{y - 46}" width="14" height="24" fill="#fff" stroke="{V33}" stroke-width="2"/>')
-    wire([(x, y - 46), (x, 758), (x, 740)], V33, 2)
-    dot(x, 740, V33, 5)
-    dot(x, y, SIG, 5)
-label(820, 912, "10 kΩ", anchor="end", size=11)
-label(845, 976, "10 kΩ", anchor="end", size=11)
-# COM to MaixCAM2 GND via left side
-wire([(420, 945), (390, 945), (390, 1015), (420, 1015)], GND, 3)
-wire([(390, 945), (390, 1060), (920, 1060), (920, 780)], GND, 3)
-dot(390, 945, GND, 5)
-dot(920, 780, GND, 5)
-label(650, 1078, "foot COM to MaixCAM2 GND (left header)", anchor="middle", size=11)
+# feet: switch closes the GPIO to GND; a 10 k resistor pulls it up to 3V3
+box(420, 950, 260, 50, "Left foot switch", [], fill="#eef7ee", title_size=15)
+box(420, 1030, 260, 50, "Right foot switch", [], fill="#eef7ee", title_size=15)
+pin(680, 975, "NO", "r", "#d6f0d6")
+pin(680, 1055, "NO", "r", "#d6f0d6")
+pin(420, 975, "COM", "l", "#ddd")
+pin(420, 1055, "COM", "l", "#ddd")
+wire([(680, 975), (MX, 975)], SIG, 3)
+wire([(680, 1055), (MX, 1055)], SIG, 3)
+
+
+def v33_flag(x, y):
+    """A 3V3 tag: the wire ends at the MaixCAM2 3V3 pin, not drawn across the sheet."""
+    out.append(f'<rect x="{x - 20}" y="{y - 10}" width="40" height="20" rx="4" fill="#e3d7f3" stroke="{V33}" stroke-width="2"/>')
+    text(x, y + 5, "3V3", size=12, anchor="middle", weight="bold", fill="#4b2d73")
+
+
+def resistor(x, y_top):
+    out.append(f'<rect x="{x - 7}" y="{y_top}" width="14" height="24" fill="#fff" stroke="{V33}" stroke-width="2"/>')
+
+
+# left foot: pull-up above its line
+wire([(860, 975), (860, 955)], V33, 2)
+resistor(860, 931)
+wire([(860, 931), (860, 916)], V33, 2)
+v33_flag(860, 906)
+dot(860, 975, SIG, 5)
+label(874, 948, "10 kΩ", size=11)
+# right foot: pull-up below its line
+wire([(860, 1055), (860, 1075)], V33, 2)
+resistor(860, 1075)
+wire([(860, 1099), (860, 1112)], V33, 2)
+v33_flag(860, 1122)
+dot(860, 1055, SIG, 5)
+label(874, 1092, "10 kΩ", size=11)
+label(725, 1126, "to the MaixCAM2 3V3 pin", anchor="middle", size=11)
+
+# both COMs to the second GND pin on the left header
+wire([(420, 975), (395, 975), (395, 1055), (420, 1055)], GND, 3)
+wire([(395, 1055), (395, 1150), (930, 1150), (930, 1085), (MX, 1085)], GND, 3)
+dot(395, 1055, GND, 5)
+label(650, 1168, "foot COM to MaixCAM2 GND (left header)", anchor="middle", size=11)
 
 # right edge: right header (antennas, LEDs) and camera connector
 RP = [("A31 PWM7", 730, "#d6f0d6"), ("B2 PWM4", 770, "#d6f0d6"), ("B3 PWM5", 840, "#d6f0d6"),
@@ -282,10 +300,8 @@ label(1450, 1032, "flat cable", anchor="middle", size=11)
 
 # bottom: 6-pin connector (optional UART4)
 pin(1060, MY + MH, "6-pin 1.25 mm", "l", "#eee")
-box(960, 1150, 440, 70, "Optional: servo bus on UART4 instead of USB", ["A21 UART4_TX > board RX, A22 UART4_RX < board TX, GND", "/dev/ttyS4, check the board's UART is 3.3 V"], fill="#f7f7f7", stroke=OPT, dash=True, title_size=14)
+box(960, 1150, 440, 70, "Optional: servo bus on UART4 instead of USB", ["A21 UART4_TX > servo board RX, A22 UART4_RX < TX, GND", "/dev/ttyS4, check the board's UART is 3.3 V"], fill="#f7f7f7", stroke=OPT, dash=True, title_size=14)
 wire([(1110, MY + MH + 11), (1110, 1150)], OPT, 3, dash=True)
-wire([(960, 1185), (870, 1185), (870, 1120), (820, 1120)], OPT, 3, dash=True)
-text(810, 1124, "to servo board UART header", size=11, anchor="end", fill="#666")
 
 # gamepad
 box(1500, 1140, 270, 60, "Gamepad", ["BLE, no wire"], fill="#f7f7f7", dash=True, title_size=15)
@@ -299,12 +315,12 @@ legend = [(BAT, "pack + (unswitched)", False), (V74, "7.4 V switched / servo bus
           (FPC, "camera flat cable", False), (OPT, "optional / wireless", True)]
 for i, (c, s, d) in enumerate(legend):
     x = LX + (i % 2) * 185
-    y = LY + (i // 2) * 22 - 70
+    y = LY + (i // 2) * 22 + 20
     wire([(x, y), (x + 34, y)], c, 4, dash=d)
     text(x + 42, y + 5, s, size=12, fill="#333")
-text(30, 1250, "All MaixCAM2 IO is 3.3 V. One common ground. Do not use A28/A29 (console); A2 is blocked. "
+text(30, 1310, "All MaixCAM2 IO is 3.3 V. One common ground. Do not use A28/A29 (console); A2 is blocked. "
      "Dashed boxes are optional or depend on the head layout.", size=13, fill="#333")
-text(30, 1272, "Generated by tools/wiring/make_wiring_svg.py. Edit that script, not this file.", size=12, fill="#777")
+text(30, 1332, "Generated by tools/wiring/make_wiring_svg.py. Edit that script, not this file.", size=12, fill="#777")
 
 svg = (
     f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
