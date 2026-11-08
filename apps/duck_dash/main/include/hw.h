@@ -1,4 +1,4 @@
-/* Hardware drivers in plain C: Feetech STS bus, BNO055 over i2c-dev, GPIO lines. */
+/* Hardware drivers in plain C: Feetech STS bus, BNO08x over i2c-dev, GPIO lines. */
 #ifndef DUCK_DASH_HW_H
 #define DUCK_DASH_HW_H
 
@@ -34,23 +34,37 @@ int ft_ping(ft_bus *b, int id);
 /* Reads n bytes from addr. Returns the status error byte (>=0) or -1. */
 int ft_read(ft_bus *b, int id, int addr, int n, uint8_t *out);
 
-/* ---- BNO055 ---- */
-#define BNO_CHIP_ID 0xA0
+/* ---- BNO08x (BNO085/BNO086): SH-2 over SHTP, same protocol as odm_maix/bno08x.py ---- */
+#define BNO_ADDR_A 0x4A
+#define BNO_ADDR_B 0x4B
+#define BNO_MAX_PACKET 512
 
 typedef struct {
     int fd;
     int bus, addr;
+    uint8_t seq[6];
+    float acc[3], gyro[3]; /* sensor frame, m/s^2 and rad/s */
+    int have_acc, have_gyro;
+    int accuracy[3];       /* accel gyro mag, 0..3, -1 unknown */
+    int product_ok, reset_cause, sw_major, sw_minor, sw_patch;
+    int resets;            /* unexpected chip resets seen */
+    int interval_us;       /* reports enabled at this interval, 0 = none */
 } bno_dev;
 
-int bno_open(bno_dev *d, int bus, int addr);       /* 0 = chip id ok */
-int bno_scan(bno_dev *d);                          /* buses 0..7, 0x28/0x29 */
-int bno_read(bno_dev *d, int reg, uint8_t *buf, int n);
-int bno_write(bno_dev *d, int reg, uint8_t val);
-/* Configure like odm_maix/imu.py (axis remap, offsets, NDOF) if the chip is
- * still in CONFIG mode. Leaves a running chip alone. */
-int bno_setup(bno_dev *d, int upside_down, const char *offsets_json_path);
+/* Opens /dev/i2c-bus and asks for the Product ID (soft reset only if it does
+ * not answer). 0 = an SH-2 chip answered. */
+int bno_open(bno_dev *d, int bus, int addr);
+int bno_scan(bno_dev *d); /* buses 0..7, 0x4A/0x4B */
+/* Stream calibrated accelerometer + gyroscope reports every interval_us. */
+int bno_start(bno_dev *d, int interval_us);
+/* Read every queued packet. Returns the number of sensor reports parsed, -1 on an I2C error. */
+int bno_poll(bno_dev *d);
+/* Parse one packet's payload (pure, for tests). Returns sensor reports parsed. */
+int bno_parse(bno_dev *d, int channel, const uint8_t *p, int n);
 void bno_close(bno_dev *d);
-void bno_remap_bytes(int upside_down, uint8_t *config, uint8_t *sign);
+/* odm_maix/bno08x.py REMAP_UPRIGHT / REMAP_UPSIDE_DOWN, or a custom
+ * [x_axis, y_axis, z_axis, x_neg, y_neg, z_neg] (remap[0] < 0 = use upside_down). */
+void bno_remap(const int remap[6], int upside_down, const float in[3], float out[3]);
 
 /* ---- GPIO character device (v1 line handles, as maix.gpio uses) ---- */
 /* "GPIOB21" or "B21" -> chip 1, line 21 */

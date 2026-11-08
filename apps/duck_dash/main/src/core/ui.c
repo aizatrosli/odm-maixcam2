@@ -153,7 +153,7 @@ static void status_column(gfx_canvas *c, const dash_snapshot *s, int x, int y, i
     status_row(c, x, y, w, s->batt_st, "Battery", val, msg);
     y += rh;
 
-    status_row(c, x, y, w, s->imu_st, "IMU", s->imu_st == ST_OK ? "BNO055" : st_word(s->imu_st), s->imu_msg);
+    status_row(c, x, y, w, s->imu_st, "IMU", s->imu_st == ST_OK ? "BNO086" : st_word(s->imu_st), s->imu_msg);
     y += rh;
 
     snprintf(val, sizeof val, "L:%s R:%s", s->foot[0] < 0 ? "?" : s->foot[0] ? "gnd" : "air",
@@ -277,8 +277,8 @@ static void attitude(gfx_canvas *c, const dash_snapshot *s, int x, int y, int w,
     int by = y + h - 20;
     float g = sqrtf(s->acc[0] * s->acc[0] + s->acc[1] * s->acc[1] + s->acc[2] * s->acc[2]);
     if (s->calib[0] >= 0 && s->source != SRC_FEED)
-        gfx_textf(c, &FONT_SMALL, x + 8, by, DIM, GFX_ALIGN_LEFT, "|g| %.2f  cal S%d G%d A%d M%d", g, s->calib[0],
-                  s->calib[1], s->calib[2], s->calib[3]);
+        gfx_textf(c, &FONT_SMALL, x + 8, by, DIM, GFX_ALIGN_LEFT, "|g| %.2f  cal A%d G%d M%d", g, s->calib[0],
+                  s->calib[1], s->calib[2]);
     else
         gfx_textf(c, &FONT_SMALL, x + 8, by, DIM, GFX_ALIGN_LEFT, "|g| %.2f m/s2", g);
 }

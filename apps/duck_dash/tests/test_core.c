@@ -54,11 +54,36 @@ static void test_units(void)
     NEAR(ft_raw_to_rad_vel(0x8000 | 4095), -2 * M_PI, 1e-4);
     NEAR(ft_raw_to_load_pct(0x400 | 250), -25.0, 1e-4);
     NEAR(ft_raw_to_load_pct(1000), 100.0, 1e-4);
-    uint8_t cfg, sign;
-    bno_remap_bytes(0, &cfg, &sign);
-    CHECK(cfg == 0x21 && sign == 0x04); /* bno055.axis_remap_bytes(*REMAP_UPRIGHT) */
-    bno_remap_bytes(1, &cfg, &sign);
-    CHECK(cfg == 0x21 && sign == 0x07);
+    /* bno08x.apply_remap: upright x = -y, y = x, z = z; upside down negates y and z too */
+    float in[3] = {1, 2, 3}, out[3];
+    int unset[6] = {-1};
+    bno_remap(unset, 0, in, out);
+    CHECK(out[0] == -2 && out[1] == 1 && out[2] == 3);
+    bno_remap(unset, 1, in, out);
+    CHECK(out[0] == -2 && out[1] == -1 && out[2] == -3);
+    int custom[6] = {0, 1, 2, 0, 0, 1};
+    bno_remap(custom, 0, in, out);
+    CHECK(out[0] == 1 && out[1] == 2 && out[2] == -3);
+    /* SHTP payload: base timestamp + accelerometer (Q8) + gyroscope (Q9), then junk */
+    bno_dev d;
+    memset(&d, 0, sizeof d);
+    d.fd = -1;
+    const uint8_t pkt[] = {0xFB, 0, 0, 0, 0,
+                           0x01, 0, 3, 0, 0x00, 0x01, 0x00, 0xFF, 0x9D, 0x09, /* 1.0, -1.0, 9.61 m/s2 */
+                           0x02, 0, 2, 0, 0x00, 0x02, 0x00, 0x00, 0x00, 0xFE, /* 1.0, 0, -1.0 rad/s */
+                           0x77, 0x00};
+    CHECK(bno_parse(&d, 3, pkt, sizeof pkt) == 2);
+    NEAR(d.acc[0], 1.0, 1e-6);
+    NEAR(d.acc[1], -1.0, 1e-6);
+    NEAR(d.acc[2], 2461.0 / 256, 1e-6);
+    NEAR(d.gyro[0], 1.0, 1e-6);
+    NEAR(d.gyro[2], -1.0, 1e-6);
+    CHECK(d.have_acc && d.have_gyro && d.accuracy[0] == 3 && d.accuracy[1] == 2);
+    const uint8_t pid[16] = {0xF8, 3, 3, 12, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0};
+    CHECK(bno_parse(&d, 2, pid, 16) == 0 && d.product_ok && d.reset_cause == 3 && d.sw_minor == 12 && d.sw_patch == 7);
+    const uint8_t rst[1] = {1};
+    bno_parse(&d, 1, rst, 1);
+    CHECK(d.resets == 1);
     int chip, line;
     CHECK(gpio_parse("GPIOB21", &chip, &line) == 0 && chip == 1 && line == 21);
     CHECK(gpio_parse("A4", &chip, &line) == 0 && chip == 0 && line == 4);
@@ -80,7 +105,7 @@ static void test_config(void)
                      "  \"joints_offsets\": {\"left_knee\": 0.12, \"head_yaw\": -0.05},\n"
                      "  \"maixcam2\": {\n"
                      "    \"servo_port\": \"/dev/ttyS4\", \"servo_baudrate\": 1000000,\n"
-                     "    \"imu_i2c_bus\": 7, \"imu_address\": 41,\n"
+                     "    \"imu_i2c_bus\": 7, \"imu_address\": 74, \"imu_axis_remap\": [1, 0, 2, 0, 1, 1],\n"
                      "    \"note\": \"a \\\"quoted\\\" {brace}\",\n"
                      "    \"pinmap\": {\"A8\": \"I2C7_SCL\", \"A9\": \"I2C7_SDA\", \"A21\": \"UART4_TX\", \"A22\": \"UART4_RX\"},\n"
                      "    \"policy_backend\": \"npu\", \"policy_path\": \"~/out/walk_policy.mud\",\n"
@@ -96,7 +121,8 @@ static void test_config(void)
     CHECK(c.imu_bus == -1 && !strcmp(c.servo_port, "/dev/ttyACM0") && c.pinmap_n == 2);
     CHECK(dash_config_load(&c, path) == 0 && c.loaded);
     CHECK(!strcmp(c.servo_port, "/dev/ttyS4"));
-    CHECK(c.imu_bus == 7 && c.imu_addr == 41 && c.imu_upside_down == 1);
+    CHECK(c.imu_bus == 7 && c.imu_addr == 74 && c.imu_upside_down == 1);
+    CHECK(c.imu_remap[0] == 1 && c.imu_remap[3] == 0 && c.imu_remap[5] == 1);
     CHECK(c.pinmap_n == 4 && !strcmp(c.pinmap_pin[3], "A22") && !strcmp(c.pinmap_func[2], "UART4_TX"));
     CHECK(!strcmp(c.policy_backend, "npu"));
     CHECK(!strcmp(c.policy_path, "/home/duck/out/walk_policy.mud"));

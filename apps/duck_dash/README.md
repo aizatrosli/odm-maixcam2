@@ -1,6 +1,6 @@
 # duck_dash: live telemetry on the MaixCAM2 screen
 
-A native app that shows, on the MaixCAM2's own screen, whether each part of the duck is connected and what it reads right now: the 14 servos, the battery, the BNO055, the foot switches, the camera, the walking policy on the NPU, the person detector, the gamepad, WiFi, audio and the board itself.
+A native app that shows, on the MaixCAM2's own screen, whether each part of the duck is connected and what it reads right now: the 14 servos, the battery, the BNO086, the foot switches, the camera, the walking policy on the NPU, the person detector, the gamepad, WiFi, audio and the board itself.
 
 ![Overview, everything connected](docs/overview.png)
 
@@ -18,7 +18,7 @@ The app never turns servo torque on and never writes servo registers. It only re
 |---|---|---|
 | Servos | Feetech bus on `maixcam2.servo_port`, one 8-byte read per servo (position, velocity, load, voltage, temperature, status bits) | every ID in `odm_maix/hwi.py` answers. Missing IDs are listed and retried every 2 s. |
 | Battery | average supply voltage the servos report (the 2S pack) | 7.0 V or more (amber below 7.0, red below 6.4, as in `diagnose.py`) |
-| IMU | BNO055 on `/dev/i2c-N` (`imu_i2c_bus`, or a scan of 0..7) | chip answers and gravity reads 8.8 to 10.8 m/s². Configured like `odm_maix/imu.py` (axis remap, `~/imu_offsets.json`, NDOF) only if the chip is still in CONFIG mode. |
+| IMU | BNO086 (BNO08x) on `/dev/i2c-N` (`imu_i2c_bus`, or a scan of 0..7 at 0x4B/0x4A) | chip answers its Product ID request, streams accel + gyro reports, and gravity reads 8.8 to 10.8 m/s². Same axis remap as `odm_maix/imu.py` (`imu_upside_down`, `imu_axis_remap`). The only writes are SH-2 report requests; the chip is reset only if it does not answer. |
 | Feet | `/dev/gpiochipN` lines for `left_foot_gpio` / `right_foot_gpio` (B21 is chip 1 line 21) | both lines read. A closed switch reads as "ground". |
 | Camera | live 320x240 preview | frames arrive |
 | Policy | `policy_path`; a `.mud` is loaded on the NPU once at start and timed on a zero observation | the model loads and takes 101 inputs |
@@ -42,7 +42,7 @@ The feed costs the walk loop about 0.1 ms every 5th step, plus one 2-byte servo 
 
 ## Why C, and the one C++ file
 
-Everything that runs every frame is C99: the Feetech, BNO055 and GPIO drivers (`main/src/core/hw.c`), the sampler thread (`sampler.c`), the renderer with its own anti-aliased font (`gfx.c`, `ui.c`), and the main loop (`app.c`). The sampler reads every device at 20 Hz in its own thread, so a slow or missing device never stalls the screen, which redraws at 15 fps from a copy of the latest readings. Drawing a full frame takes about 0.6 ms on a PC; the A53 is several times slower, which is still a small part of the 66 ms between frames.
+Everything that runs every frame is C99: the Feetech, BNO086 and GPIO drivers (`main/src/core/hw.c`), the sampler thread (`sampler.c`), the renderer with its own anti-aliased font (`gfx.c`, `ui.c`), and the main loop (`app.c`). The sampler reads every device at 20 Hz in its own thread, so a slow or missing device never stalls the screen, which redraws at 15 fps from a copy of the latest readings. Drawing a full frame takes about 0.6 ms on a PC; the A53 is several times slower, which is still a small part of the 66 ms between frames.
 
 `main/src/main_maixcdk.cpp` is C++ only because Sipeed's SDK for the screen, touch panel, camera, NPU and pin functions (MaixCDK) has no C API. It is about 200 lines, does no drawing or sampling, and only hands frames and touches to the C core. The MaixCAM2 display goes through the AX630C video-output driver rather than a plain Linux framebuffer, so there is no SDK-free way to light the screen reliably.
 
@@ -122,4 +122,4 @@ This was built and tested on a PC: the C core against the simulated duck, the Ma
 - the dashboard fills the panel the right way round (it renders 640x480 and lets MaixCDK fit it to the screen)
 - tapping switches pages (MaixCDK touch coordinates)
 - the camera preview at 320x240 works next to the NPU probe
-- the BNO055 reads over `/dev/i2c-7` once the dashboard has set the A8/A9 pin functions
+- the BNO086 reads over `/dev/i2c-7` once the dashboard has set the A8/A9 pin functions (the C SHTP driver is unit-tested on parsed packets, not yet against a chip)

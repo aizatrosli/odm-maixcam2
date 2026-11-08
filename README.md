@@ -1,6 +1,6 @@
 # Open Duck Mini on MaixCAM2
 
-A runtime for [Open Duck Mini v2](https://github.com/apirrone/Open_Duck_Mini) that replaces the Raspberry Pi Zero 2W with a [Sipeed MaixCAM2](https://wiki.sipeed.com/hardware/en/maixcam/maixcam2.html) (AX630C, 2x A53, 3.2 TOPS INT8 NPU, built-in camera). The hardware is the standard v2 BOM; only the brain changes.
+A runtime for [Open Duck Mini v2](https://github.com/apirrone/Open_Duck_Mini) that replaces the Raspberry Pi Zero 2W with a [Sipeed MaixCAM2](https://wiki.sipeed.com/hardware/en/maixcam/maixcam2.html) (AX630C, 2x A53, 3.2 TOPS INT8 NPU, built-in camera). The hardware is the standard v2 BOM with two swaps: the brain, and a BNO086 IMU in place of the BNO055. [docs/BOM.md](docs/BOM.md) lists the differences.
 
 The roadmap is in [docs/PLAN.md](docs/PLAN.md). This first part (step 1) ports the [Pi runtime](https://github.com/apirrone/Open_Duck_Mini_Runtime) so the pretrained walking policy runs on the MaixCAM2, first on the CPU and then on the NPU.
 
@@ -9,10 +9,10 @@ The roadmap is in [docs/PLAN.md](docs/PLAN.md). This first part (step 1) ports t
 | Pi runtime | Here | Why |
 |---|---|---|
 | `rustypot` (Rust extension) | `odm_maix/feetech.py`, pure Python + pyserial | Nothing to compile for the board; reads position and velocity in one bus transaction |
-| `adafruit_bno055` through Blinka | `odm_maix/bno055.py` over `/dev/i2c-N` (smbus2) | Blinka has no MaixCAM2 board definition |
+| `adafruit_bno055` through Blinka (BNO055) | BNO086: `odm_maix/bno08x.py`, SHTP over `/dev/i2c-N`, standard library only | Blinka has no MaixCAM2 board definition; the BNO086 replaces the BNO055 |
 | `board`/`digitalio` foot switches | `maix.gpio` | MaixCAM2 GPIO |
 | `onnxruntime` only | `onnx` (CPU) or `npu` (`maix.nn` + Pulsar2 `.axmodel`) backends | NPU inference |
-| calibration in `.pkl` | `~/imu_offsets.json` | Plain file |
+| IMU calibration in `.pkl` | in the BNO086's flash (`~/imu_offsets.json` records when) | The BNO08x keeps its own calibration |
 
 These stay exactly the same, because the policy depends on them: the 101-value observation layout, the action scale (0.25), servo IDs, init pose, gains, the gait phase clock, and the rustypot unit conversions. `tests/` checks them.
 
@@ -29,7 +29,7 @@ The full pin table, connector map and power layout are in [docs/WIRING.md](docs/
 |---|---|
 | UBEC 5 V | 5V + GND on the right header |
 | Servo driver board | Type-C in USB host mode (`/dev/ttyACM0`), or UART4 `A21`/`A22` (`/dev/ttyS4`) |
-| BNO055 | 3V3, GND, `A8` I2C7_SCL, `A9` I2C7_SDA |
+| BNO086 IMU | 3V3 (never 5 V), GND, `A8` I2C7_SCL, `A9` I2C7_SDA; 0x4B or 0x4A |
 | Foot switches (to GND) | left `B21`, right `B20` |
 | Antenna servos | `A31` PWM7, `B2` PWM4 |
 | Eye LEDs, projector | `B3` PWM5, `A30` PWM6, `A4` GPIO |
@@ -65,7 +65,7 @@ The single-purpose scripts are still there:
 python3 scripts/find_pins.py               # check the pins in docs/WIRING.md
 python3 scripts/check_motors.py            # all 14 servos answer, torque off
 python3 scripts/test_imu.py                # upright -> accelero ~ [0, 0, +9.8]
-python3 scripts/test_imu.py --calibrate    # saves ~/imu_offsets.json
+python3 scripts/test_imu.py --calibrate    # saves the calibration on the BNO086
 python3 scripts/test_feet.py
 python3 scripts/walk.py --no_gamepad       # walk in place, policy on CPU
 python3 scripts/walk.py --save_obs obs.npy # walk around a bit with the gamepad, record observations
@@ -75,7 +75,7 @@ python3 scripts/walk.py --save_obs obs.npy # walk around a bit with the gamepad,
 
 ## Telemetry on the screen
 
-`apps/duck_dash` is a native C app for the MaixCAM2's screen that shows whether each part is connected and what it reads: the 14 servos (position, temperature, voltage, status bits), the battery, the BNO055, the foot switches, a camera preview, the walking policy loaded on the NPU, the gamepad, WiFi and the board. While `walk.py` runs, it switches to a feed the walk loop publishes (loop timing, mode, commands) instead of touching the hardware. Build it with MaixCDK; see [apps/duck_dash/README.md](apps/duck_dash/README.md).
+`apps/duck_dash` is a native C app for the MaixCAM2's screen that shows whether each part is connected and what it reads: the 14 servos (position, temperature, voltage, status bits), the battery, the BNO086, the foot switches, a camera preview, the walking policy loaded on the NPU, the gamepad, WiFi and the board. While `walk.py` runs, it switches to a feed the walk loop publishes (loop timing, mode, commands) instead of touching the hardware. Build it with MaixCDK; see [apps/duck_dash/README.md](apps/duck_dash/README.md).
 
 ![duck_dash overview](apps/duck_dash/docs/overview.png)
 
@@ -243,7 +243,7 @@ ODM_POLICY_ONNX=path/to/BEST_WALK_ONNX_2.onnx python3 -m pytest tests   # also r
 
 ## Verification status
 
-The code has not walked a duck on a MaixCAM2 yet. Every claim the README and [docs/WIRING.md](docs/WIRING.md) make was checked against primary sources: the MaixCDK and MaixPy source and docs, the Pulsar2 docs (up to 7.0), the Feetech STS3215 SDK, the Bosch BNO055 datasheet, and Open_Duck_Mini_Runtime with the rustypot 0.1.0 it pins.
+The code has not walked a duck on a MaixCAM2 yet. Every claim the README and [docs/WIRING.md](docs/WIRING.md) make was checked against primary sources: the MaixCDK and MaixPy source and docs, the Pulsar2 docs (up to 7.0), the Feetech STS3215 SDK, the Bosch BNO055 datasheet, CEVA's SH-2 and SHTP reference manuals (BNO086), and Open_Duck_Mini_Runtime with the rustypot 0.1.0 it pins.
 
 Verified:
 - **Pins.** Pin names, `maix.pinmap` function names and `/dev` paths: `/dev/i2c-7`, `/dev/ttyS4`, PWM 4 to 7. PWM6 is shared with the onboard light. UART0 is the console.
@@ -254,7 +254,7 @@ Verified:
 - **Board system.** `launcher.service`, `/maixapp/auto_start.txt`, `maix_memory_cmm` in MiB, `/proc/ax_proc/mem_cmm_info`, and USB host mode dropping the USB network all match the docs. The board reports 3072 MB of CMM with about 62 MB used.
 - **Servo protocol.** STS3215 registers, packet format, and unit conversions match rustypot 0.1.0.
 - **Policy constants.** Servo IDs, init pose, gains, action scale and the 101-value observation match the Pi runtime.
-- **BNO055.** Registers, scales, mode timing and axis remap match the datasheet and the Pi runtime.
+- **BNO086.** SHTP framing, Set Feature, Product ID, ME calibration and Save DCD layouts, and the Q8/Q9 report scales match the SH-2 manuals and Adafruit's CircuitPython BNO08x driver. The axis remap is the BNO055 one from the Pi runtime, applied in software.
 
 Corrected in this pass:
 - **Foot switches need external pull-ups.** `maix.gpio` does not enable an internal pull-up on inputs, so add a 10 kΩ resistor from B20 and B21 to 3V3 (WIRING.md).
@@ -262,9 +262,9 @@ Corrected in this pass:
 - **Camera FOV.** The stock lens is 86.7° horizontal at 16:9, so the 4:3 frame is about 65–71°. Measure it and set `hfov_deg`.
 - **1 Mbps UART4.** The rate is exact because the UART divider is fractional, not an integer divider. Sipeed has only tested 115200.
 - **`setup_board.sh`.** `revert` used to restore the whole `/boot/configs`, which undid later Settings changes. `--autostart` used to carry on when `launcher.service` was missing. `--cmm` had no upper bound.
-- **BNO055 register page.** The driver now selects register page 0 before it reads anything.
+- **IMU is now a BNO086.** The BNO055 driver is gone; the runtime, diagnostics, simulator and dashboard speak the BNO08x protocol.
 
-Still needs the board: see [docs/HARDWARE_CHECKLIST.md](docs/HARDWARE_CHECKLIST.md) for the short list of on-board tests. It covers boot pin functions, the foot pull-ups, the servo adapter device node, BNO055 clock stretching on I2C7, SCHED_FIFO and the governor, unit names, NPU float32 I/O, YOLO speed, FOV and head signs, ViT multi-frame builds, and the BLE gamepad.
+Still needs the board: see [docs/HARDWARE_CHECKLIST.md](docs/HARDWARE_CHECKLIST.md) for the short list of on-board tests. It covers boot pin functions, the foot pull-ups, the servo adapter device node, BNO086 on I2C7 and its axes, SCHED_FIFO and the governor, unit names, NPU float32 I/O, YOLO speed, FOV and head signs, ViT multi-frame builds, and the BLE gamepad.
 
 ## Credits
 

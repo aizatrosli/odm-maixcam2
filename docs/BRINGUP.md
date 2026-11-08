@@ -5,7 +5,7 @@ Two tools take the duck from "MaixCAM2 wired in" to "ready for the first walk":
 - `scripts/diagnose.py` checks the config, the board, every servo, the IMU, the foot switches, the camera, NPU and audio, and the 50 Hz loop. **No check turns servo torque on.**
 - `scripts/calibrate.py` sets up new servos, measures joint offsets and ranges, and calibrates the IMU. It writes `duck_config.json` only after you confirm, and keeps a timestamped `.bak` copy.
 
-Both run on a PC with `--dry-run`, against a simulated duck that speaks the real Feetech protocol and BNO055 registers, so the same driver code runs in both cases. `--fault` injects a problem (missing servo, flat battery, IMU upside down, swapped feet, ...) so you can see what the report looks like before it happens for real.
+Both run on a PC with `--dry-run`, against a simulated duck that speaks the real Feetech protocol and the BNO086's SHTP packets, so the same driver code runs in both cases. `--fault` injects a problem (missing servo, flat battery, IMU upside down, swapped feet, ...) so you can see what the report looks like before it happens for real.
 
 ```bash
 python3 scripts/diagnose.py --dry-run -i                              # healthy simulated duck
@@ -26,7 +26,7 @@ Put the duck on a stand with its feet off the ground, battery charged, and SSH i
 | 4 | `python3 scripts/calibrate.py offsets` | Hold the duck in its init pose with torque off; offsets = measured - init pose |
 | 5 | `python3 scripts/calibrate.py offsets --nudge-only` | Fine-tune joint by joint with low torque (one joint powered at a time) |
 | 6 | `python3 scripts/calibrate.py ranges --save-limits` | Move each joint end stop to end stop by hand. Flags joints that cross the encoder wrap and saves soft limits (`maixcam2.joint_limits`) that `HWI` clamps targets to. Rerun after changing offsets |
-| 7 | `python3 scripts/calibrate.py -i imu` | BNO055 calibration saved to `imu_offsets_path`, then gravity, gyro bias and the tilt/turn axis signs |
+| 7 | `python3 scripts/calibrate.py -i imu` | BNO086 calibration saved in the chip's flash (and a record in `imu_offsets_path`), then gravity, gyro bias and the tilt/turn axis signs |
 | 8 | `python3 scripts/diagnose.py -i` | Everything again, with the guided steps: init pose, tilt and turn, press each foot, hear the speaker, watch the antennas and eye LEDs |
 
 Between steps, `apps/duck_dash` on the MaixCAM2 screen shows the same parts live (servos answering, battery, IMU tilt, feet, camera, NPU policy) without a laptop: plug a servo in and its row turns green. It only reads, so it is safe to leave running on the stand. See [apps/duck_dash/README.md](../apps/duck_dash/README.md).
@@ -44,7 +44,7 @@ Exit code is 0 when everything passed, 1 with warnings, 2 with failures, and eve
 | `servo.power` | 7.0 to 8.5 V, under 0.4 V spread, under 55 C, no error flags | charge; a big spread is a loose lead in the chain |
 | `servo.pose` | every joint at least 0.8 rad from raw 0/4095 | a joint that crosses the wrap jumps by 2 pi in the observation: re-seat the horn |
 | `servo.timing` | 14-servo position+velocity read p99 under 4 ms, no errors | baud rate, cable, ground between boards, USB adapter latency |
-| `imu.chip` | BNO055 self test passes for accel, mag, gyro and MCU | power-cycle; replace the board if it stays |
+| `imu.chip` | the BNO086 answers its Product ID request, and its last reset was not its watchdog | watchdog: check 3V3 and the I2C wires, power-cycle; replace the board if it stays |
 | `imu.still` | gravity 9.81 +- 0.3, gyro bias under 0.05 rad/s, no I2C errors | I2C errors: drop I2C7 to 100 kHz (clock stretching) |
 | `imu.upright` / `imu.axes` | upright reads +z; nose down gives -x, right side down +y, turning left +z gyro | flip `imu_upside_down`, or fix the mounting |
 | `feet.stable` / `feet.press` | inputs steady; each switch changes its own side | flicker: fit the 10 kOhm pull-ups; swapped: swap `left_foot_gpio` / `right_foot_gpio` |

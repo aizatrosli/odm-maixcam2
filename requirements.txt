@@ -1,6 +1,5 @@
 # On the MaixCAM2 (MaixPy, i.e. the `maix` module, is preinstalled on the board image)
 numpy
 pyserial
-smbus2
 onnxruntime   # CPU backend; not needed when running the NPU backend only
 pygame        # optional, gamepad commands

@@ -40,11 +40,18 @@ DEFAULT_MAIXCAM2 = {
     # (/dev/ttyS4, add "A21": "UART4_TX", "A22": "UART4_RX" to pinmap).
     "servo_port": "/dev/ttyACM0",
     "servo_baudrate": 1000000,
-    # BNO055 on I2C7 (A8 = SCL, A9 = SDA, see pinmap below).
-    # null bus = scan /dev/i2c-0..7 at start-up.
+    # BNO086 (or BNO085) on I2C7 (A8 = SCL, A9 = SDA, see pinmap below).
+    # null bus = scan /dev/i2c-0..7 for 0x4A/0x4B at start-up. 0x4B is the
+    # SparkFun BNO086 default, 0x4A the Adafruit BNO085 one (ADR jumper).
     "imu_i2c_bus": None,
-    "imu_address": 0x28,
+    "imu_address": 0x4B,
+    # The calibration lives in the chip's flash; this file only records
+    # when it was saved, so diagnose.py can tell.
     "imu_offsets_path": os.path.join(HOME_DIR, "imu_offsets.json"),
+    # null = the Pi runtime's remap (upright or imu_upside_down). A breakout
+    # mounted another way: [x_axis, y_axis, z_axis, x_neg, y_neg, z_neg],
+    # axes 0/1/2 = sensor x/y/z, so that body = sign * sensor[axis].
+    "imu_axis_remap": None,
     # Foot switches to GND, on the left 2x6 header, each with an external
     # 10k pull-up to 3V3 (maix.gpio does not turn on a pull-up for inputs).
     "left_foot_gpio": "GPIOB21",
