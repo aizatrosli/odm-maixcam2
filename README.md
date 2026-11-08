@@ -18,7 +18,7 @@ These stay exactly the same, because the policy depends on them: the 101-value o
 
 ## Wiring
 
-The full pin table, connector map and power layout are in [docs/WIRING.md](docs/WIRING.md). In short (all MaixCAM2 IO is **3.3 V**):
+The full pin table, connector map and power layout are in [docs/WIRING.md](docs/WIRING.md), and the battery, BMS, charger and 5 V buck wiring is in [docs/POWER.md](docs/POWER.md). In short (all MaixCAM2 IO is **3.3 V**):
 
 ![MaixCAM2 to Open Duck Mini v2 wiring](docs/images/maixcam2-duck-wiring.png)
 
