@@ -298,6 +298,24 @@ static void feet(gfx_canvas *c, const dash_snapshot *s, int x, int y, int w, int
     }
 }
 
+/* the camera panel on the overview page, and the 4:3 picture inside it */
+#define CAM_PANEL_X 428
+#define CAM_PANEL_Y 242
+#define CAM_PANEL_W 206
+#define CAM_PANEL_H 232
+
+static void camera_rect(int x, int y, int w, int h, int *ix, int *iy, int *iw, int *ih)
+{
+    *iw = w - 12;
+    *ih = *iw * 3 / 4;
+    if (*ih > h - 26) {
+        *ih = h - 26;
+        *iw = *ih * 4 / 3;
+    }
+    *ix = x + (w - *iw) / 2;
+    *iy = y + 22;
+}
+
 static void camera_or_walk(gfx_canvas *c, const dash_snapshot *s, int x, int y, int w, int h, const uint8_t *cam,
                            int cw, int ch)
 {
@@ -325,12 +343,8 @@ static void camera_or_walk(gfx_canvas *c, const dash_snapshot *s, int x, int y, 
         return;
     }
     panel(c, x, y, w, h, "CAMERA");
-    int iw = w - 12, ih = iw * 3 / 4;
-    if (ih > h - 26) {
-        ih = h - 26;
-        iw = ih * 4 / 3;
-    }
-    int ix = x + (w - iw) / 2, iy = y + 22;
+    int ix, iy, iw, ih;
+    camera_rect(x, y, w, h, &ix, &iy, &iw, &ih);
     if (cam && s->cam_st == ST_OK) {
         gfx_blit_scaled(c, ix, iy, iw, ih, cam, cw, ch);
         gfx_textf(c, &FONT_SMALL, x + w - 8, y + 4, DIM, GFX_ALIGN_RIGHT, "%.0f fps", s->cam_fps);
@@ -351,7 +365,7 @@ static void page_overview(gfx_canvas *c, const dash_snapshot *s, const uint8_t *
     servo_panel(c, s, 226, 36, 196, 438);
     attitude(c, s, 428, 36, 206, 152);
     feet(c, s, 428, 192, 206, 46);
-    camera_or_walk(c, s, 428, 242, 206, 232, cam, cw, ch);
+    camera_or_walk(c, s, CAM_PANEL_X, CAM_PANEL_Y, CAM_PANEL_W, CAM_PANEL_H, cam, cw, ch);
 }
 
 /* ------------------------------------------------------------- page 1 */
@@ -412,4 +426,13 @@ void dash_ui_draw(gfx_canvas *c, const dash_snapshot *s, int page, const uint8_t
     header(c, s, page);
     if (page == 1) page_servos(c, s);
     else page_overview(c, s, cam, cw, ch);
+}
+
+int dash_ui_draw_camera(gfx_canvas *c, const dash_snapshot *s, int page, const uint8_t *cam, int cw, int ch)
+{
+    if (page != 0 || s->walk_live || !cam || s->cam_st != ST_OK) return 0;
+    int ix, iy, iw, ih;
+    camera_rect(CAM_PANEL_X, CAM_PANEL_Y, CAM_PANEL_W, CAM_PANEL_H, &ix, &iy, &iw, &ih);
+    gfx_blit_scaled(c, ix, iy, iw, ih, cam, cw, ch);
+    return 1;
 }

@@ -42,7 +42,13 @@ The feed costs the walk loop about 0.1 ms every 5th step, plus one 2-byte servo 
 
 ## Why C, and the one C++ file
 
-Everything that runs every frame is C99: the Feetech, BNO086 and GPIO drivers (`main/src/core/hw.c`), the sampler thread (`sampler.c`), the renderer with its own anti-aliased font (`gfx.c`, `ui.c`), and the main loop (`app.c`). The sampler reads every device at 20 Hz in its own thread, so a slow or missing device never stalls the screen, which redraws at 15 fps from a copy of the latest readings. Drawing a full frame takes about 0.6 ms on a PC; the A53 is several times slower, which is still a small part of the 66 ms between frames.
+Everything that runs every frame is C99: the Feetech, BNO086 and GPIO drivers (`main/src/core/hw.c`), the sampler thread (`sampler.c`), the renderer with its own anti-aliased font (`gfx.c`, `ui.c`), and the main loop (`app.c`). The sampler reads every device at 20 Hz in its own thread, so a slow or missing device never stalls the screen. The screen runs at 30 fps, but only the camera picture is drawn every frame: the rest is redrawn from a copy of the latest readings 10 times a second (`--ui-hz`), since the readings only change at 20 Hz. A full redraw takes about 12 ms on the board's A53; a camera-only frame well under 1 ms. A frame with nothing new is not sent to the display, and on the MaixCAM2's 640x480 panel the canvas is shown without scaling (2.8 ms instead of 6.9 ms).
+
+### Camera at 30 fps
+
+In a dim room the sensor's own auto-exposure stretches the exposure to 100 ms, which holds the camera at about 10 fps whatever frame rate is asked for (measured on the board: 9-10 fps at every resolution with auto exposure, a steady 30 fps with the exposure at 30 ms or less). The dashboard therefore runs its own auto-exposure: the exposure stays at or under 33 ms (`--cam-max-exp`) and gain makes up the rest, so the picture gets darker and noisier in dim light but the frame rate holds. A thread in `main_maixcdk.cpp` reads every frame (blocking) and keeps only the latest, so the screen loop never waits for the sensor and never misses a frame. `--cam-max-exp 0` gives the SDK's auto-exposure back.
+
+The same limit applies to the person detector that `walk.py --follow` runs on this camera.
 
 `main/src/main_maixcdk.cpp` is C++ only because Sipeed's SDK for the screen, touch panel, camera, NPU and pin functions (MaixCDK) has no C API. It is about 200 lines, does no drawing or sampling, and only hands frames and touches to the C core. The MaixCAM2 display goes through the AX630C video-output driver rather than a plain Linux framebuffer, so there is no SDK-free way to light the screen reliably.
 
@@ -84,7 +90,10 @@ Options (`./duck_dash --help`):
 --imu-bus N         override maixcam2.imu_i2c_bus
 --camera live|off   camera preview (default live; released while walk.py runs)
 --no-bus --no-imu --no-feet   leave that hardware alone
---fps N             screen refresh rate (default 15)
+--fps N             screen refresh rate, the most camera frames shown (default 30)
+--ui-hz N           how often the readings are redrawn (default 10)
+--cam-fps N         camera sensor frame rate (default 30, 0 = SDK default)
+--cam-max-exp MS    longest exposure the auto-exposure picks (default 33; 0 = SDK's own AE)
 --page N            start page (0 overview, 1 servo table)
 --stats[=S]         print frame time, sampler rate and memory every S s (default 10)
 ```

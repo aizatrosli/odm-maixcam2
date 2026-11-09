@@ -207,6 +207,40 @@ static void test_sim_and_ui(void)
     free(c.px);
 }
 
+/* the camera-only redraw must leave exactly what a full redraw would */
+static void test_camera_redraw(void)
+{
+    dash_snapshot s;
+    memset(&s, 0, sizeof s);
+    dash_sim_fill(&s, "", 2.0);
+    s.cam_st = ST_OK;
+    s.cam_fps = 30;
+    const int cw = 320, ch = 240;
+    uint8_t *a = malloc(cw * ch * 3), *b = malloc(cw * ch * 3);
+    for (int i = 0; i < cw * ch * 3; i++) {
+        a[i] = (uint8_t)(i * 7);
+        b[i] = (uint8_t)(255 - i * 13);
+    }
+    gfx_canvas full = {calloc(640 * 480, 3), 640, 480}, part = {calloc(640 * 480, 3), 640, 480};
+    dash_ui_draw(&full, &s, 0, b, cw, ch);
+    dash_ui_draw(&part, &s, 0, a, cw, ch);
+    CHECK(memcmp(full.px, part.px, 640 * 480 * 3) != 0); /* the picture shows */
+    CHECK(dash_ui_draw_camera(&part, &s, 0, b, cw, ch) == 1);
+    CHECK(memcmp(full.px, part.px, 640 * 480 * 3) == 0);
+    /* no picture on the servo page, while walking, or without a camera */
+    CHECK(dash_ui_draw_camera(&part, &s, 1, b, cw, ch) == 0);
+    CHECK(dash_ui_draw_camera(&part, &s, 0, NULL, cw, ch) == 0);
+    s.walk_live = 1;
+    CHECK(dash_ui_draw_camera(&part, &s, 0, b, cw, ch) == 0);
+    s.walk_live = 0;
+    s.cam_st = ST_FAIL;
+    CHECK(dash_ui_draw_camera(&part, &s, 0, b, cw, ch) == 0);
+    free(full.px);
+    free(part.px);
+    free(a);
+    free(b);
+}
+
 int main(void)
 {
     test_packets();
@@ -214,6 +248,7 @@ int main(void)
     test_config();
     test_feed();
     test_sim_and_ui();
+    test_camera_redraw();
     printf("%d checks, %d failed\n", checks, failures);
     return failures != 0;
 }

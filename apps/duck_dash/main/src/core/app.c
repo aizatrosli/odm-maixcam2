@@ -33,7 +33,13 @@ static void usage(void)
          "  --feed PATH         walk.py telemetry feed (default /dev/shm/duck_telemetry)\n"
          "  --camera live|off   camera preview (default live; released while walk.py runs)\n"
          "  --no-bus --no-imu --no-feet   leave that hardware alone\n"
-         "  --fps N             screen refresh rate (default 15)\n"
+         "  --fps N             screen refresh rate, the most camera frames shown (default 30)\n"
+         "  --ui-hz N           how often the readings are redrawn (default 10); in between\n"
+         "                      only new camera frames are drawn\n"
+         "  --cam-fps N         camera sensor frame rate (default 30, 0 = SDK default)\n"
+         "  --cam-max-exp MS    longest exposure the dashboard's auto-exposure picks\n"
+         "                      (default 33, which keeps 30 fps; 0 = the SDK's own AE,\n"
+         "                      which drops to ~10 fps in dim light)\n"
          "  --page N            start page (0 overview, 1 servo table)\n"
          "  --sim[=FAULTS]      simulated duck, e.g. --sim=missing:23,lowvolt:6.6,no_imu,walk\n"
          "  --frames N          stop after N frames\n"
@@ -70,7 +76,7 @@ static void dump(const dash_snapshot *s)
     printf("imu=%s msg=%s acc=%.2f,%.2f,%.2f roll=%.1f pitch=%.1f\n", stw(s->imu_st), s->imu_msg, s->acc[0], s->acc[1],
            s->acc[2], s->roll, s->pitch);
     printf("feet=%s left=%d right=%d msg=%s\n", stw(s->feet_st), s->foot[0], s->foot[1], s->feet_msg);
-    printf("camera=%s msg=%s\n", stw(s->cam_st), s->cam_msg);
+    printf("camera=%s msg=%s fps=%.1f\n", stw(s->cam_st), s->cam_msg, s->cam_fps);
     printf("policy=%s backend=%s msg=%s\n", stw(s->npu_st), s->backend, s->npu_msg);
     printf("detector=%s msg=%s\n", stw(s->vis_st), s->vis_msg);
     printf("walk_live=%d mode=%s state=%s loop_ms=%.2f policy_ms=%.2f steps=%d bus_errors=%u temp_max=%d\n",
@@ -168,7 +174,8 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
     dash_config cfg;
     dash_options opt = {0};
     const char *config_path = NULL, *snapshot = NULL, *servo_port = NULL;
-    int fps = 15, frames = -1, page = 0, do_dump = 0, imu_bus = -2;
+    int fps = 30, ui_hz = 10, frames = -1, page = 0, do_dump = 0, imu_bus = -2;
+    int cam_fps = 30, cam_max_exp_us = 33000;
     double stats_every = 0;
     opt.camera_mode = 1;
     for (int i = 1; i < argc; i++) {
@@ -183,6 +190,9 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
         else if (!strcmp(a, "--no-imu")) opt.no_imu = 1;
         else if (!strcmp(a, "--no-feet")) opt.no_feet = 1;
         else if (!strcmp(a, "--fps")) fps = atoi(NEXT);
+        else if (!strcmp(a, "--ui-hz")) ui_hz = atoi(NEXT);
+        else if (!strcmp(a, "--cam-fps")) cam_fps = atoi(NEXT);
+        else if (!strcmp(a, "--cam-max-exp")) cam_max_exp_us = (int)(atof(NEXT) * 1000);
         else if (!strcmp(a, "--page")) page = atoi(NEXT);
         else if (!strcmp(a, "--frames")) frames = atoi(NEXT);
         else if (!strcmp(a, "--snapshot")) snapshot = NEXT;
@@ -202,6 +212,10 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
     }
     if (fps < 1) fps = 1;
     if (fps > 60) fps = 60;
+    if (ui_hz < 1) ui_hz = 1;
+    if (ui_hz > fps) ui_hz = fps;
+    if (cam_fps < 0) cam_fps = 0;
+    if (cam_max_exp_us < 0) cam_max_exp_us = 0;
     page = page < 0 ? 0 : page % dash_ui_pages();
 
     dash_config_defaults(&cfg);
@@ -233,8 +247,12 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
     int use_cam = opt.camera_mode && !opt.sim_faults && plat->camera_open && plat->camera_read;
     if (!opt.sim_faults && opt.camera_mode && !plat->camera_open)
         dash_sampler_set_camera(smp, ST_UNKNOWN, "no camera access in this build", 0);
+    if (use_cam && plat->camera_config) plat->camera_config(plat->ctx, cam_fps, cam_max_exp_us);
 
-    dash_snapshot snap;
+    dash_snapshot snap, drawn_snap;
+    memset(&drawn_snap, 0, sizeof drawn_snap);
+    double last_full = -1e9;
+    int last_page = -1;
     dash_stats stats = {0};
     const long period = 1000000000L / fps;
     struct timespec next;
@@ -244,6 +262,7 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
         dash_sampler_get(smp, &snap);
 
         /* the camera: live preview, handed over while the walk loop runs */
+        int new_cam = 0;
         if (use_cam) {
             if (snap.walk_live && cam_open) {
                 plat->camera_close(plat->ctx);
@@ -261,7 +280,7 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
             }
             if (cam_open) {
                 if (plat->camera_read(plat->ctx, cam, CAM_W, CAM_H) == 0) {
-                    have_cam = 1;
+                    have_cam = new_cam = 1;
                     cam_frames++;
                 }
                 double dt = dash_now() - cam_t0;
@@ -284,10 +303,24 @@ int dash_main(int argc, char **argv, const dash_platform *plat)
             page = (page + 1) % dash_ui_pages();
         }
 
+        /* The readings change at the sampler's 20 Hz and nobody reads text faster
+         * than that, so the whole screen is redrawn at most ui_hz times a second
+         * (and at once on a page change); in between, only a new camera frame is
+         * drawn into its box. A frame with neither is not sent to the display. */
         double t_draw = dash_now();
-        dash_ui_draw(&canvas, &snap, page, have_cam ? cam : NULL, CAM_W, CAM_H);
+        int redraw = page != last_page || t_draw - last_full >= 1.0 / ui_hz || (frames >= 0 && f == frames - 1);
+        int dirty = 0;
+        if (redraw) {
+            dash_ui_draw(&canvas, &snap, page, have_cam ? cam : NULL, CAM_W, CAM_H);
+            last_full = t_draw;
+            last_page = page;
+            drawn_snap = snap;
+            dirty = 1;
+        } else if (new_cam) {
+            dirty = dash_ui_draw_camera(&canvas, &drawn_snap, page, cam, CAM_W, CAM_H);
+        }
         /* while the vision process draws its eyes or boxes, leave the screen to it */
-        if (have_display && !snap.screen_busy) plat->display_show(plat->ctx, canvas.px, CANVAS_W, CANVAS_H);
+        if (dirty && have_display && !snap.screen_busy) plat->display_show(plat->ctx, canvas.px, CANVAS_W, CANVAS_H);
         if (stats_every > 0) {
             stats_frame(&stats, &snap, (dash_now() - t_draw) * 1000);
             if (dash_now() - stats.win_t0 >= stats_every) stats_report(&stats, &snap, stderr, 0);

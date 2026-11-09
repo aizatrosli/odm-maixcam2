@@ -128,8 +128,13 @@ typedef struct dash_platform {
     /* 1 if a touch-down happened since the last call */
     int (*touch_tap)(void *ctx, int *x, int *y);
     int (*need_exit)(void *ctx);
+    /* before camera_open: sensor frame rate (0 = SDK default) and the longest
+     * exposure the auto-exposure may pick in us (0 = leave the SDK's own AE,
+     * which stretches exposure, and so drops the frame rate, in dim light) */
+    void (*camera_config)(void *ctx, int fps, int max_exposure_us);
     int (*camera_open)(void *ctx, int w, int h);
-    int (*camera_read)(void *ctx, uint8_t *rgb, int w, int h); /* 0 = frame */
+    /* 0 = a new frame was copied into rgb, otherwise none since the last call */
+    int (*camera_read)(void *ctx, uint8_t *rgb, int w, int h);
     void (*camera_close)(void *ctx);
     /* load a .mud, run one zero input of in_size floats; 0 = ok */
     int (*npu_probe)(void *ctx, const char *mud, int in_size, float *load_ms, float *infer_ms, char *msg, int msglen);
@@ -197,6 +202,9 @@ int dash_dev_in_use(const char *dev, char *who, int wholen);
 
 /* ui.c -------------------------------------------------------------------- */
 void dash_ui_draw(gfx_canvas *canvas, const dash_snapshot *s, int page, const uint8_t *cam, int cam_w, int cam_h);
+/* redraw only the camera picture, over a canvas dash_ui_draw drew with the
+ * same snapshot and page; 1 if drawn, 0 if this page/state shows no picture */
+int dash_ui_draw_camera(gfx_canvas *canvas, const dash_snapshot *s, int page, const uint8_t *cam, int cam_w, int cam_h);
 int dash_ui_pages(void);
 
 /* util -------------------------------------------------------------------- */
