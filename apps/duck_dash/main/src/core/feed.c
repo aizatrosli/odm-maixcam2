@@ -173,7 +173,7 @@ int dash_feed_read(const char *path, double max_age_s, dash_snapshot *s, const d
             snprintf(n.bus_msg, sizeof n.bus_msg, "walk loop: no servo answers");
         } else if (found < DASH_NJ) {
             n.bus_st = ST_FAIL;
-            snprintf(n.bus_msg, sizeof n.bus_msg, "walk loop: missing ID %s", missing);
+            snprintf(n.bus_msg, sizeof n.bus_msg, "walk loop: missing ID %.41s", missing);
         } else if (errbits || temp >= 55) {
             n.bus_st = ST_WARN;
             snprintf(n.bus_msg, sizeof n.bus_msg, "%s", temp >= 55 ? "a servo runs hot" : "servo status error");
