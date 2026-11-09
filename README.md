@@ -18,22 +18,30 @@ These stay exactly the same, because the policy depends on them: the 101-value o
 
 ## Wiring
 
-The full pin table, connector map and power layout are in [docs/WIRING.md](docs/WIRING.md), and the battery, BMS, charger and 5 V buck wiring is in [docs/POWER.md](docs/POWER.md). In short (all MaixCAM2 IO is **3.3 V**):
+The whole duck on one sheet, with every BOM part (click it for full size):
 
-![MaixCAM2 to Open Duck Mini v2 wiring](docs/images/maixcam2-duck-wiring.png)
+[![Open Duck Mini v2 + MaixCAM2 full wiring](docs/images/duck-wiring.svg)](docs/images/duck-wiring.svg)
+
+[docs/WIRING.md](docs/WIRING.md) has the same wiring as a Mermaid chart, a part-by-part table and the full pin table. [docs/POWER.md](docs/POWER.md) covers the battery, BMS, charger and 5 V buck. The diagram is drawn by `tools/wiring/make_wiring_svg.py`, so a wiring change shows up as a text diff.
+
+The header pinout, with each pin's alternate functions:
+
+![MaixCAM2 header pinout for the duck](docs/images/maixcam2-duck-wiring.png)
 
 <sub>Base pinout drawing: [Sipeed MaixCAM2 pins](https://wiki.sipeed.com/hardware/en/maixcam/maixcam2.html). Duck labels added for this project.</sub>
 
+In short (all MaixCAM2 IO is **3.3 V**):
 
 | Part | MaixCAM2 |
 |---|---|
-| UBEC 5 V | 5V + GND on the right header |
-| Servo driver board | Type-C in USB host mode (`/dev/ttyACM0`), or UART4 `A21`/`A22` (`/dev/ttyS4`) |
+| 5 V buck (V752-755, or a UBEC), 3 A+ | 5V + GND on the right header, 470 µF across them |
+| Servo driver board | Type-C in USB host mode (`/dev/ttyACM0`), or UART4 `A21`/`A22` (`/dev/ttyS4`). Its 7.4 V comes straight from the pack |
 | BNO086 IMU | 3V3 (never 5 V), GND, `A8` I2C7_SCL, `A9` I2C7_SDA; 0x4B or 0x4A |
-| Foot switches (to GND) | left `B21`, right `B20` |
-| Antenna servos | `A31` PWM7, `B2` PWM4 |
-| Eye LEDs, projector | `B3` PWM5, `A30` PWM6, `A4` GPIO |
-| Speaker, mic, camera | onboard, no wiring |
+| Foot switches (to GND) | left `B21`, right `B20`, each with a 10 kΩ pull-up to 3V3 |
+| Antenna servos | `A31` PWM7, `B2` PWM4, powered from the 5 V buck |
+| Camera module | camera connector; on a ~100 mm 22-pin flat cable with the screen-as-face head |
+| Eye LEDs, projector (case_closed head only) | `B3` PWM5, `A30` PWM6, `A4` GPIO |
+| Screen, speaker, mics | onboard, no wiring |
 
 ## Setup on the MaixCAM2
 
