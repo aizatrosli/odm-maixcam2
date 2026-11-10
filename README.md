@@ -43,6 +43,10 @@ In short (all MaixCAM2 IO is **3.3 V**):
 | Eye LEDs, projector (case_closed head only) | `B3` PWM5, `A30` PWM6, `A4` GPIO |
 | Screen, speaker, mics | onboard, no wiring |
 
+## Head
+
+[hardware/head_maixcam2](hardware/head_maixcam2/README.md) has printable heads for the MaixCAM2, with their build script and fit checks. In the default layout, the MaixCAM2 screen is the duck's face and the camera module sits in a pod on top of the head. The other layout keeps the board in its case behind the stock eyes.
+
 ## Setup on the MaixCAM2
 
 ```bash

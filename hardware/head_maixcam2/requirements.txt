@@ -1,0 +1,7 @@
+numpy
+trimesh
+manifold3d
+scipy
+rtree
+Pillow
+cadquery  # only for the fit checks: tessellates the MaixCAM2 STEP once
