@@ -81,6 +81,29 @@ tensorboard --logdir runs
 
 Expect a few hours on one recent GPU for 300M steps. Each checkpoint writes `<date>_<step>.onnx` and `.json`, and `progress.json` records the step count and newest ONNX.
 
+### On a CPU-only x86 server
+
+Training works without a GPU, just slowly. Install the same pins with the CPU JAX wheel (`jax==0.8.0` instead of `jax[cuda12]==0.8.0`, and `tensorflow-cpu` instead of `tensorflow`), then start it with [`train_cpu.sh`](train_cpu.sh):
+
+```bash
+pip install "jax==0.8.0" mujoco==3.3.7 mujoco-mjx==3.3.7 brax==0.13.0 playground==0.0.5 \
+  flax==0.12.0 orbax-checkpoint==0.12.8 ml-collections==1.1.0 tensorflow-cpu==2.21.0 tf2onnx==1.17.0 \
+  onnx==1.23.2 onnxruntime==1.31.1 tensorboardX==2.6.5 jaxtyping mediapy
+ODP_DIR=~/Open_Duck_Playground nohup ./training/train_cpu.sh --flavor follow_flat_backlash \
+  --camera_mass_g 60,200 --num_timesteps 150000000 --output_dir ~/duck_runs/follow_cpu > train.log 2>&1 &
+```
+
+The script gives JAX one device per core so brax spreads the envs over all of them (without it, one run uses about two cores), uses 64 envs per core, and keeps a compile cache. Use an absolute `--output_dir`, because the run starts in the Open_Duck_Playground folder. `--resume` continues after a stop. The PPO batch per update stays the same as on a GPU, so the result should match a GPU run of the same length.
+
+Measured on a 4-vCPU cloud VM (512 envs, 4 devices): about 6 minutes to compile and run the first eval, then 830 to 1,500 env steps per second including evals. That is about 1 to 1.5 days per 100M steps. It should scale roughly with physical cores, so a 32 to 64 core server is in the range of a few hours per 50M steps (an estimate, not measured). Watch `tensorboard --logdir ~/duck_runs` and run `sim_eval` on the newest checkpoint instead of waiting for the full 300M.
+
+With Docker (CPU image, `JAX=jax==0.8.0` in `.env`), the same script runs in the `sim` service; it copies Open_Duck_Playground to `/work` because the image's copy is read-only:
+
+```bash
+docker compose run --rm sim /workspace/odm-maixcam2/training/train_cpu.sh \
+  --flavor follow_flat_backlash --camera_mass_g 60,200 --output_dir /work/runs/follow_cpu
+```
+
 ### With the camera's weight
 
 The duck model has no camera. With the MaixCAM2 on the head, add its weight so the policy learns to carry it:
